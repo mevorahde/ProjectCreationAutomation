@@ -1,7 +1,7 @@
 :: ENTER PATH WHERE THE script.py IS LOCATED.
 cd <PATH>
 
-python script.py %1 %2
+python script.py %1 %2 %3
 
 :: ENTER PATH WHERE YOUR PROJECTS ARE SAVED
 :: e.g. C:\Users\<USERNAME>\Documents\Projects
