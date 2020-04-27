@@ -16,6 +16,7 @@ path = "<PATH>"
 def create_folder_and_repo():
     folder_name = str(sys.argv[1])
     public_private = str(sys.argv[2])
+    code_ide = str(sys.argv[3])
     os.makedirs(path+folder_name)
 
     user = Github(git_username, git_password).get_user()
