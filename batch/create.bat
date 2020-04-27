@@ -19,5 +19,14 @@ git add .
 git commit -m "initial commit"
 git push -u origin master
 
+:: OPENS PYCHARM
+IF %3==pycharm (pycharm64 .) 
+
+:: OPENS VISUAL STUDIO
+IF %3==visualstudio (devenv.exe .)
+
+:: OPENS SUBLIME
+IF %3==sublime (subl .)
+
 :: OPENS VISUAL STUDIO CODE
-code .
+IF %3==vsc (code .)
