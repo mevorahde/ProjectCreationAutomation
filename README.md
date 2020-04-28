@@ -24,7 +24,10 @@ Then edit the two files **create.bat** (inside batch-folder) and **scripty.py** 
 ## How to use it
 To create a new project just open your command-line (cmd) and type in a command with the following syntax:
 ```bash
-create <ProjectName> <private/public>
+create <ProjectName> <private/public> <IDE of choice>
 ```
 * **ProjectName**: Write here your new project's name without space
 * **private/public**: Write here if you want your project to be public or private on github.
+* **IDE of choice**:  The new project will open with the IDE that is choosen. Currently setup for Pychrm, Visual Studios, Sublime and Visual Studio Code.
+* Parm Options:pycharm, visualstudio, sublime, vsc
+
