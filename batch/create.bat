@@ -20,7 +20,7 @@ git commit -m "initial commit"
 git push -u origin master
 
 :: NO PARM TO OPEN IDE
-IF %3 =="" (echo Finished)
+IF %3 =="" (echo : Finished)
 
 :: OPENS PYCHARM
 IF %~3==pycharm (pycharm64 .)
