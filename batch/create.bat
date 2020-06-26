@@ -20,16 +20,16 @@ git commit -m "initial commit"
 git push -u origin master
 
 :: NO PARM TO OPEN IDE
-IF %3 =="" echo : Finished
+IF %~3 =="" echo : Finished
 
 :: OPENS PYCHARM
 IF %~3==pycharm (pycharm64 .)
 
 :: OPENS VISUAL STUDIO
-IF %3==visualstudio (devenv.exe .)
+IF %~3==visualstudio (devenv.exe .)
 
 :: OPENS SUBLIME
-IF %3==sublime (subl .)
+IF %~3==sublime (subl .)
 
 :: OPENS VISUAL STUDIO CODE
 IF %3==vsc (code .)
