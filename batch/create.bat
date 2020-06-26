@@ -1,7 +1,7 @@
 :: ENTER PATH WHERE THE script.py IS LOCATED.
 cd C:\Users\David E\version-control\ProjectCreationAutomation
 
-python script.py %1 %2 %3
+python script.py %1 %2 %~3
 
 :: ENTER PATH WHERE YOUR PROJECTS ARE SAVED
 :: e.g. C:\Users\<USERNAME>\Documents\Projects
@@ -20,10 +20,10 @@ git commit -m "initial commit"
 git push -u origin master
 
 :: NO PARM TO OPEN IDE
-IF %3 =="" (rem)
+IF %3 =="" (exit /b 2)
 
 :: OPENS PYCHARM
-IF %3==pycharm (pycharm64 .) 
+IF %~3==pycharm (pycharm64 .)
 
 :: OPENS VISUAL STUDIO
 IF %3==visualstudio (devenv.exe .)
