@@ -1,7 +1,5 @@
 import os
 import sys
-import json
-import requests
 from github import Github
 from dotenv import load_dotenv
 from pathlib import Path
@@ -32,23 +30,15 @@ def create_folder_and_repo():
     code_ide = str(sys.argv[3])
     os.makedirs(path + folder_name)
 
-    GITHUB_URL = "https://api.github.com"
-    headers = {
-        "Authorization": "token " + token,
-        "Accept": "application/vnd.github.v3+json"
-    }
+    g = Github(token)
+    user = g.get_user()
 
-    try:
-        if public_private == "private":
-            data = {"name": "{}", "private": "true".format(folder_name)}
-            r = requests.post(GITHUB_URL + "/user/repos", data=json.dumps(data), headers=headers)
-            r.raise_for_status()
-        else:
-            data = {"name": "{}", "private": "false".format(folder_name)}
-            r = requests.post(GITHUB_URL + "/user/repos", data=json.dumps(data), headers=headers)
-            r.raise_for_status()
-    except requests.exceptions.RequestException as err:
-        raise SystemExit(err)
+    if public_private == "private":
+        print('PRIVATE')
+        user.create_repo(folder_name, private=True)
+    else:
+        print('PUBLIC')
+        user.create_repo(folder_name)
 
     print("Successfully created repository {}".format(folder_name))
 
