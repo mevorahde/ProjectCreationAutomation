@@ -1,11 +1,11 @@
 :: ENTER PATH WHERE THE script.py IS LOCATED.
-cd C:\Users\David E\version-control\ProjectCreationAutomation
+cd C:\Users\Owner\version-control\ProjectCreationAutomation
 
 python script.py %1 %2 %3
 
 :: ENTER PATH WHERE YOUR PROJECTS ARE SAVED
 :: e.g. C:\Users\<USERNAME>\Documents\Projects
-cd C:\Users\David E\version-control\%1
+cd C:\Users\Owner\version-control\%1
 
 
 
