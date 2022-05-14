@@ -1,17 +1,17 @@
 :: ENTER PATH WHERE THE script.py IS LOCATED.
-cd C:\Users\David E\version-control\ProjectCreationAutomation
+cd <PATH>\ProjectCreationAutomation
 
 python script.py %1 %2 %3
 
 :: ENTER PATH WHERE YOUR PROJECTS ARE SAVED
 :: e.g. C:\Users\<USERNAME>\Documents\Projects
-cd C:\Users\David E\version-control\%1
+cd <PATH>%1
 
 
 
 echo "# -" >> README.md
 git init
-git remote add origin https://github.com/mevorahde/%1.git
+git remote add origin https://github.com/<USER>/%1.git
 git add README.md
 git commit -m "first commit"
 git branch -M main
