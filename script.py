@@ -11,12 +11,6 @@ load_dotenv(verbose=True)
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# ENTER YOUR GITHUB USERNAME
-git_username = os.getenv("username")
-
-# ENTER YOUR GITHUB PASSWORD
-git_password = os.getenv("password")
-
 # Get Github Token
 token = os.getenv('gt')
 
