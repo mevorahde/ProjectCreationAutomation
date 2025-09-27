@@ -45,7 +45,5 @@ def create_folder_and_repo():
         print("GitHub API error:", err)
         print("Response:", response.text)
 
-    os.system("pause")
-
 if __name__ == "__main__":
     create_folder_and_repo()
