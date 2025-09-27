@@ -1,43 +1,49 @@
 import os
 import sys
-from github import Github
+import json
+import requests
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv()
-load_dotenv(verbose=True)
+# Load environment variables from .env
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# ENTER YOUR GITHUB USERNAME
-git_username = os.getenv("username")
-
-# ENTER YOUR GITHUB PASSWORD
-git_password = os.getenv("password")
-
-# ENTER THE COMPLETE PATH TO YOUR LOCATION WHERE YOU WANT TO SAVE YOUR PROJECTS
-# e.g. C:/Users/<USERNAME>/Documents/Projects/
-## !!!YOU MUST SEPERATE FOLDERS WITH NORMAL-SLASHES NOT BACK-SLASHES AND AT THE END PUT A SLASH LIKE IN THE EXAMPLE!!!
+# Retrieve GitHub token and local project path
+token = os.getenv('gt')
 path = os.getenv("project_path")
 
+# Fail fast if token is missing
+if not token:
+    print("GitHub token not found. Check your .env file.")
+    os.system("pause")
+    sys.exit(1)
 
 def create_folder_and_repo():
-    folder_name = str(sys.argv[1])
-    public_private = str(sys.argv[2])
-    code_ide = str(sys.argv[3])
-    os.makedirs(path + folder_name)
+    folder_name = sys.argv[1]
+    public_private = sys.argv[2].lower()
+    code_ide = sys.argv[3].lower()
 
-    user = Github(git_username, git_password).get_user()
+    full_path = path + folder_name
+    os.makedirs(full_path, exist_ok=True)
 
-    if public_private == "private":
-        print('PRIVATE')
-        user.create_repo(folder_name, private=True)
-    else:
-        print('PUBLIC')
-        user.create_repo(folder_name)
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
 
-    print("Successfully created repository {}".format(folder_name))
+    data = {
+        "name": folder_name,
+        "private": public_private == "private"
+    }
 
+    try:
+        response = requests.post("https://api.github.com/user/repos", json=data, headers=headers)
+        response.raise_for_status()
+        print(f"Successfully created repository '{folder_name}'")
+    except requests.exceptions.RequestException as err:
+        print("GitHub API error:", err)
+        print("Response:", response.text)
 
 if __name__ == "__main__":
     create_folder_and_repo()
