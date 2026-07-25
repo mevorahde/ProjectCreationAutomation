@@ -1,4 +1,4 @@
-"""Safety-first project creation planning.
+"""Safety-first local project creation and planning.
 
 Importing this package performs no configuration loading, filesystem access,
 network access, subprocess launch, or mutation.
@@ -21,4 +21,4 @@ __all__ = [
     "build_creation_plan",
 ]
 
-__version__ = "0.2.0.dev0"
+__version__ = "0.3.0.dev0"

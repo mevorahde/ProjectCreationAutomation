@@ -26,10 +26,13 @@ def test_local_only_plan_is_deterministic() -> None:
     assert [step.action for step in first.steps] == [
         PlanAction.VALIDATE_REQUEST,
         PlanAction.VERIFY_DESTINATION_AVAILABLE,
+        PlanAction.VERIFY_GIT_AVAILABLE,
         PlanAction.REQUIRE_EXPLICIT_CONFIRMATION,
         PlanAction.CREATE_LOCAL_DIRECTORY,
-        PlanAction.INITIALIZE_GIT,
         PlanAction.CREATE_INITIAL_FILES,
+        PlanAction.INITIALIZE_GIT,
+        PlanAction.STAGE_STARTER_FILES,
+        PlanAction.VERIFY_GIT_INDEX,
         PlanAction.CREATE_INITIAL_COMMIT,
     ]
 
@@ -41,11 +44,14 @@ def test_github_steps_are_optional_and_ordered() -> None:
     assert actions == [
         PlanAction.VALIDATE_REQUEST,
         PlanAction.VERIFY_DESTINATION_AVAILABLE,
+        PlanAction.VERIFY_GIT_AVAILABLE,
         PlanAction.VERIFY_REMOTE_AVAILABLE,
         PlanAction.REQUIRE_EXPLICIT_CONFIRMATION,
         PlanAction.CREATE_LOCAL_DIRECTORY,
-        PlanAction.INITIALIZE_GIT,
         PlanAction.CREATE_INITIAL_FILES,
+        PlanAction.INITIALIZE_GIT,
+        PlanAction.STAGE_STARTER_FILES,
+        PlanAction.VERIFY_GIT_INDEX,
         PlanAction.CREATE_INITIAL_COMMIT,
         PlanAction.CREATE_REMOTE_REPOSITORY,
         PlanAction.ADD_REMOTE,

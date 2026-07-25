@@ -7,18 +7,28 @@ import sys
 from collections.abc import Sequence
 from typing import TextIO
 
+from project_creation_automation.adapters.filesystem import BoundedFilesystemAdapter
+from project_creation_automation.adapters.git import GitProcessAdapter
 from project_creation_automation.domain import (
     DomainError,
-    ExecutionUnavailableError,
     IDEChoice,
     PathFlavor,
     ProjectRequest,
     Visibility,
 )
+from project_creation_automation.execution import (
+    ConsoleConfirmation,
+    ExecutionStatus,
+    ExplicitConfirmation,
+    LocalCreationOrchestrator,
+    StreamOperationalReporter,
+)
 from project_creation_automation.planning import build_creation_plan
 
 EXIT_INVALID_REQUEST = 2
-EXIT_EXECUTION_UNAVAILABLE = 3
+EXIT_CANCELLED = 4
+EXIT_CREATION_FAILED = 5
+EXIT_MANUAL_CLEANUP_REQUIRED = 6
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="project-create",
-        description="Validate and plan project creation without performing mutations.",
+        description="Plan projects or create one confirmed local Git project safely.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan_parser = subparsers.add_parser(
@@ -38,14 +48,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     create_parser = subparsers.add_parser(
         "create",
-        help="reserved for a future execution adapter",
-        description="Execution is intentionally unavailable in Stage 2.",
+        help="create one confirmed local project and Git repository",
+        description=(
+            "Create a local project after fail-closed preflight and explicit confirmation. "
+            "GitHub and IDE execution remain unavailable."
+        ),
     )
     _add_request_arguments(create_parser)
     create_parser.add_argument(
         "--confirm",
         action="store_true",
-        help="record explicit intent; Stage 2 still performs no mutation",
+        help="explicitly confirm noninteractive local creation",
     )
     return parser
 
@@ -55,11 +68,14 @@ def run(
     *,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    stdin: TextIO | None = None,
+    orchestrator: LocalCreationOrchestrator | None = None,
 ) -> int:
     """Run validation/planning and return an exit status."""
 
     output = stdout or sys.stdout
     errors = stderr or sys.stderr
+    input_stream = stdin or sys.stdin
     parser = build_parser()
     arguments = parser.parse_args(argv)
 
@@ -72,17 +88,45 @@ def run(
             create_github_repository=arguments.github,
             path_flavor=PathFlavor(arguments.path_flavor),
         )
-        if arguments.command == "create":
-            raise ExecutionUnavailableError("execution_unavailable")
         plan = build_creation_plan(request)
     except DomainError as error:
         errors.write(f"{error.code}: {error.message}\n")
-        if isinstance(error, ExecutionUnavailableError):
-            return EXIT_EXECUTION_UNAVAILABLE
         return EXIT_INVALID_REQUEST
 
     output.write(plan.render())
     output.write("\n")
+    if arguments.command == "create":
+        local_orchestrator = orchestrator or LocalCreationOrchestrator(
+            filesystem=BoundedFilesystemAdapter(),
+            git=GitProcessAdapter(),
+            confirmation=(
+                ExplicitConfirmation()
+                if arguments.confirm
+                else ConsoleConfirmation(input_stream, output)
+            ),
+            reporter=StreamOperationalReporter(output),
+        )
+        result = local_orchestrator.execute(request, plan)
+        output.write("github: not-performed\n")
+        output.write("ide: not-performed\n")
+        if result.status is ExecutionStatus.SUCCEEDED:
+            output.write("result: local-project-created\n")
+            return 0
+        if result.status is ExecutionStatus.CANCELLED:
+            output.write("result: cancelled-no-changes\n")
+            return EXIT_CANCELLED
+        error_code = result.error_code or "local_creation_failed"
+        if error_code == "git_identity_unavailable":
+            errors.write(
+                "git_identity_unavailable: configure Git author identity separately; "
+                "no identity setting was changed.\n"
+            )
+        else:
+            errors.write(f"{error_code}: local creation failed.\n")
+        if result.status is ExecutionStatus.MANUAL_CLEANUP_REQUIRED:
+            errors.write("manual_cleanup_required: preserve the project directory for review.\n")
+            return EXIT_MANUAL_CLEANUP_REQUIRED
+        return EXIT_CREATION_FAILED
     return 0
 
 
@@ -96,6 +140,8 @@ def _add_request_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("project_name", help="safe project label")
     parser.add_argument(
         "--project-root",
+        "--root",
+        dest="project_root",
         required=True,
         help="absolute approved project root (redacted from plan output)",
     )

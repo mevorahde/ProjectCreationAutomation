@@ -1,23 +1,21 @@
 # ProjectCreationAutomation
 
-ProjectCreationAutomation is being rebuilt as a safety-first, cross-platform
-Python tool for planning and, in later stages, creating local Git projects and
-optional GitHub repositories.
+ProjectCreationAutomation is a safety-first, cross-platform Python tool for
+planning and creating bounded local Git projects. Optional GitHub and IDE
+execution are planned for later stages.
 
-## Stage 2 status
+## Stage 3 status
 
-The new `project-create` CLI is **planning only**. It validates a request and
-prints a deterministic, redacted dry-run plan. It does not:
+The `project-create` CLI validates every request and prints a deterministic,
+redacted plan before execution. Stage 3 can create one local project directory,
+initialize Git with `main`, create two starter files, stage only those files,
+and create one initial commit.
 
-- create or overwrite files or directories;
-- invoke Git;
-- contact or authenticate to GitHub;
-- read `.env`;
-- launch an IDE; or
-- execute the retained legacy Python or batch scripts.
+It does not contact or authenticate to GitHub, configure remotes, push, read
+`.env`, launch an IDE, or execute the retained legacy Python or batch scripts.
 
-Real Git, GitHub, filesystem, and IDE adapters are not implemented yet. The
-reserved `create` command fails safely and reports that no changes were made.
+Git author identity must already be available to Git. The application does not
+change repository, global, or system identity settings.
 
 ## Supported Python versions
 
@@ -41,21 +39,46 @@ Generate a local-only plan:
 project-create plan example-project --project-root /absolute/approved/root
 ```
 
-Include optional future GitHub and IDE steps:
+Create locally with an interactive default-no confirmation:
 
 ```text
-project-create plan example-project --project-root /absolute/approved/root --github --ide visual-studio-code
+project-create create example-project --root /absolute/approved/root
 ```
 
-The absolute project root is deliberately redacted from plan output. Remote
-visibility defaults to `private`; `public` must be selected explicitly.
+For deliberate noninteractive confirmation:
+
+```text
+project-create create example-project --root /absolute/approved/root --confirm
+```
+
+The approved root must already exist, be a directory, and have no ambiguous
+symlink, junction, or reparse-point components. The destination must not exist
+in any form. The absolute root is deliberately redacted from output.
+
+The generated files are exactly:
+
+- `README.md`, containing the validated name and a minimal description placeholder;
+- `.gitignore`, containing a small Python cache and virtual-environment baseline.
+
+Both files use exclusive creation and are never overwritten. Git stages only
+these explicit names; broad staging is not used.
 
 ## Safety model
 
 Project names and destination containment are validated before a plan can be
-created. Existing local directories and existing remote repositories are
-specified to fail closed. Future execution will require a reviewed dry-run and
-explicit confirmation before the first mutation.
+created. Existing files, directories, links, and other destination entries fail
+closed. Read-only filesystem and Git preflight run before confirmation; the
+default confirmation response is no.
+
+The operation journals completed steps in memory. On failure it removes only
+paths whose identities prove they were created by that invocation. Cleanup is
+non-recursive. If unexpected content, a replaced path, a symlink/reparse point,
+or Git metadata makes cleanup ambiguous, the directory is preserved and manual
+review is required. The approved project root is never removed.
+
+The core is cross-platform. Stage 3 requires a compatible `git` executable and
+native path semantics. Windows IDE integration and all GitHub behavior remain
+unimplemented.
 
 See [the behavior specification](docs/behavior-specification.md) for ordering,
 failure reporting, confirmation, and future rollback boundaries.
@@ -64,7 +87,7 @@ failure reporting, confirmation, and future rollback boundaries.
 
 `script.py`, `requirements.txt`, and `batch/create.bat` are retained temporarily
 for historical comparison. They are not part of the new package or CLI and
-should not be used as the safe Stage 2 workflow.
+should not be used as the safe Stage 3 workflow.
 
 ## Attribution
 

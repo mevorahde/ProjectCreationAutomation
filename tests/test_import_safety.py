@@ -34,8 +34,12 @@ def test_package_import_has_no_external_side_effects(
     monkeypatch.setattr(Path, "write_bytes", _unexpected_effect)
 
     imported = importlib.import_module("project_creation_automation")
+    importlib.import_module("project_creation_automation.adapters.filesystem")
+    importlib.import_module("project_creation_automation.adapters.git")
+    importlib.import_module("project_creation_automation.execution")
+    importlib.import_module("project_creation_automation.cli")
 
-    assert imported.__version__ == "0.2.0.dev0"
+    assert imported.__version__ == "0.3.0.dev0"
     assert "dotenv" not in sys.modules
     assert "requests" not in sys.modules
 

@@ -8,8 +8,8 @@ published by Kalle Hallden.
 David Mevorah has substantially revised the project over time and is leading
 the current modernization. This work includes safer behavioral requirements, a
 cross-platform Python package foundation, typed domain models, validation,
-planning, test seams, and an explicitly non-mutating Stage 2 command-line
-interface.
+planning, test seams, and bounded, explicitly confirmed Stage 3 local filesystem
+and Git execution. GitHub and IDE execution remain outside this stage.
 
 This notice describes the project's provenance without claiming independent
 authorship of the inherited concept or implementation. Git history is retained

@@ -82,6 +82,33 @@ class ExecutionUnavailableError(DomainError):
     default_message = "Real project creation is not implemented in Stage 2; no changes were made."
 
 
+class FilesystemSafetyError(DomainError):
+    """A local filesystem operation could not be proven safe."""
+
+    default_message = "The local project could not be created safely."
+
+
+class GitOperationError(DomainError):
+    """A local Git operation failed without exposing process diagnostics."""
+
+    default_message = "The local Git operation failed."
+
+
+class GitIdentityError(GitOperationError):
+    """Git could not create a commit with the available identity."""
+
+    default_message = (
+        "Git author identity is unavailable. Configure it separately and try again; "
+        "no identity setting was changed."
+    )
+
+
+class UnsupportedExecutionError(DomainError):
+    """A request includes execution that is unavailable in this stage."""
+
+    default_message = "Only local project and Git creation are available in Stage 3."
+
+
 @dataclass(frozen=True, slots=True)
 class ProjectLocation:
     """Lexically normalized root and direct-child destination."""

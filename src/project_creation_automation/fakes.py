@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from project_creation_automation.domain import IDEChoice, ProjectLocation, Visibility
+from project_creation_automation.adapters.filesystem import RollbackStatus
+from project_creation_automation.domain import (
+    GitIdentityError,
+    GitOperationError,
+    IDEChoice,
+    ProjectLocation,
+    Visibility,
+)
 from project_creation_automation.planning import CreationPlan
 
 
@@ -81,3 +89,63 @@ class FakeOperationalReporter:
 
     def report(self, event: str) -> None:
         self.events.append(event)
+
+
+@dataclass(slots=True)
+class FakeLocalFilesystem:
+    """Deterministic opaque local-filesystem fake."""
+
+    calls: list[str] = field(default_factory=list)
+    created_marker: object = field(default_factory=object)
+    rollback_status: str = RollbackStatus.COMPLETED
+
+    def preflight(self, location: ProjectLocation) -> None:
+        self.calls.append("preflight")
+
+    def create_project_directory(self, location: ProjectLocation) -> object:
+        self.calls.append("create_project_directory")
+        return self.created_marker
+
+    def create_starter_files(
+        self,
+        location: ProjectLocation,
+        project_name: str,
+        created: object,
+    ) -> object:
+        self.calls.append("create_starter_files")
+        return created
+
+    def rollback(self, location: ProjectLocation, created: object) -> str:
+        self.calls.append("rollback")
+        return self.rollback_status
+
+
+@dataclass(slots=True)
+class FakeLocalGit:
+    """Deterministic local-Git fake with selectable failure points."""
+
+    calls: list[str] = field(default_factory=list)
+    fail_at: str | None = None
+    identity_failure: bool = False
+
+    def verify_available(self, cwd: Path) -> None:
+        self._call("verify_available")
+
+    def initialize(self, cwd: Path) -> None:
+        self._call("initialize")
+
+    def stage_exact(self, cwd: Path, paths: tuple[str, ...]) -> None:
+        self._call("stage_exact")
+
+    def verify_staged_exact(self, cwd: Path, paths: tuple[str, ...]) -> None:
+        self._call("verify_staged_exact")
+
+    def create_initial_commit(self, cwd: Path) -> None:
+        self._call("create_initial_commit")
+
+    def _call(self, name: str) -> None:
+        self.calls.append(name)
+        if self.fail_at == name:
+            if self.identity_failure:
+                raise GitIdentityError("git_identity_unavailable")
+            raise GitOperationError(f"{name}_failed")

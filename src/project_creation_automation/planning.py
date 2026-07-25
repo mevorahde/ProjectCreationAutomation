@@ -13,11 +13,14 @@ class PlanAction(str, Enum):
 
     VALIDATE_REQUEST = "validate_request"
     VERIFY_DESTINATION_AVAILABLE = "verify_destination_available"
+    VERIFY_GIT_AVAILABLE = "verify_git_available"
     VERIFY_REMOTE_AVAILABLE = "verify_remote_available"
     REQUIRE_EXPLICIT_CONFIRMATION = "require_explicit_confirmation"
     CREATE_LOCAL_DIRECTORY = "create_local_directory"
     INITIALIZE_GIT = "initialize_git"
     CREATE_INITIAL_FILES = "create_initial_files"
+    STAGE_STARTER_FILES = "stage_starter_files"
+    VERIFY_GIT_INDEX = "verify_git_index"
     CREATE_INITIAL_COMMIT = "create_initial_commit"
     CREATE_REMOTE_REPOSITORY = "create_remote_repository"
     ADD_REMOTE = "add_remote"
@@ -70,6 +73,7 @@ def build_creation_plan(request: ProjectRequest) -> CreationPlan:
     actions: list[tuple[PlanAction, bool]] = [
         (PlanAction.VALIDATE_REQUEST, False),
         (PlanAction.VERIFY_DESTINATION_AVAILABLE, False),
+        (PlanAction.VERIFY_GIT_AVAILABLE, False),
     ]
     if request.create_github_repository:
         actions.append((PlanAction.VERIFY_REMOTE_AVAILABLE, False))
@@ -77,8 +81,10 @@ def build_creation_plan(request: ProjectRequest) -> CreationPlan:
         [
             (PlanAction.REQUIRE_EXPLICIT_CONFIRMATION, False),
             (PlanAction.CREATE_LOCAL_DIRECTORY, True),
-            (PlanAction.INITIALIZE_GIT, True),
             (PlanAction.CREATE_INITIAL_FILES, True),
+            (PlanAction.INITIALIZE_GIT, True),
+            (PlanAction.STAGE_STARTER_FILES, True),
+            (PlanAction.VERIFY_GIT_INDEX, False),
             (PlanAction.CREATE_INITIAL_COMMIT, True),
         ]
     )

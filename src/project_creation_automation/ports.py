@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from pathlib import Path
+from typing import Any, Protocol
 
 from project_creation_automation.domain import IDEChoice, ProjectLocation, Visibility
 from project_creation_automation.planning import CreationPlan
@@ -54,3 +55,34 @@ class OperationalReporterPort(Protocol):
     """Redacted operational event reporting."""
 
     def report(self, event: str) -> None: ...
+
+
+class LocalFilesystemPort(Protocol):
+    """Bounded local filesystem operations for Stage 3."""
+
+    def preflight(self, location: ProjectLocation) -> None: ...
+
+    def create_project_directory(self, location: ProjectLocation) -> Any: ...
+
+    def create_starter_files(
+        self,
+        location: ProjectLocation,
+        project_name: str,
+        created: Any,
+    ) -> Any: ...
+
+    def rollback(self, location: ProjectLocation, created: Any) -> str: ...
+
+
+class LocalGitPort(Protocol):
+    """Local-only Git operations for Stage 3."""
+
+    def verify_available(self, cwd: Path) -> None: ...
+
+    def initialize(self, cwd: Path) -> None: ...
+
+    def stage_exact(self, cwd: Path, paths: tuple[str, ...]) -> None: ...
+
+    def verify_staged_exact(self, cwd: Path, paths: tuple[str, ...]) -> None: ...
+
+    def create_initial_commit(self, cwd: Path) -> None: ...
