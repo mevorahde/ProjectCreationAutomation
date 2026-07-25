@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+import importlib
+import os
+import socket
+import subprocess
+import sys
+from pathlib import Path
+from typing import NoReturn
+
+import pytest
+
+
+def _unexpected_effect(*args: object, **kwargs: object) -> NoReturn:
+    raise AssertionError("external side effect attempted during import")
+
+
+def test_package_import_has_no_external_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for module_name in tuple(sys.modules):
+        if module_name == "project_creation_automation" or module_name.startswith(
+            "project_creation_automation."
+        ):
+            del sys.modules[module_name]
+
+    monkeypatch.setattr(os, "system", _unexpected_effect)
+    monkeypatch.setattr(os, "getenv", _unexpected_effect)
+    monkeypatch.setattr(socket, "create_connection", _unexpected_effect)
+    monkeypatch.setattr(subprocess, "Popen", _unexpected_effect)
+    monkeypatch.setattr(subprocess, "run", _unexpected_effect)
+    monkeypatch.setattr(Path, "mkdir", _unexpected_effect)
+    monkeypatch.setattr(Path, "write_text", _unexpected_effect)
+    monkeypatch.setattr(Path, "write_bytes", _unexpected_effect)
+
+    imported = importlib.import_module("project_creation_automation")
+
+    assert imported.__version__ == "0.2.0.dev0"
+    assert "dotenv" not in sys.modules
+    assert "requests" not in sys.modules
+
+
+def test_cli_import_does_not_import_legacy_or_adapter_dependencies() -> None:
+    importlib.import_module("project_creation_automation.cli")
+
+    assert "dotenv" not in sys.modules
+    assert "requests" not in sys.modules
+    assert "github" not in sys.modules
