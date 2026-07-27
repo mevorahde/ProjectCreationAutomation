@@ -5,9 +5,10 @@ from __future__ import annotations
 import http.client
 import json
 import re
-from collections.abc import Iterator, Mapping
+import ssl
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Protocol, cast
 
 from project_creation_automation.credentials import SecretToken
 from project_creation_automation.domain import (
@@ -75,6 +76,10 @@ class HttpTimeoutError(HttpTransportError):
     """Internal timeout boundary error."""
 
 
+class HttpTlsVerificationError(HttpTransportError):
+    """Internal certificate-validation error."""
+
+
 class HttpTransport(Protocol):
     def request(
         self,
@@ -86,12 +91,26 @@ class HttpTransport(Protocol):
     ) -> HttpResponse: ...
 
 
+def _system_tls_context() -> ssl.SSLContext:
+    """Create one request-scoped context backed by the native certificate store."""
+
+    import truststore
+
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    return cast(ssl.SSLContext, context)
+
+
 @dataclass(frozen=True, slots=True)
 class GitHubHttpsTransport:
     """HTTPS-only fixed-origin standard-library transport."""
 
     host: str = field(default=_API_HOST, init=False)
     body_limit: int = _BODY_LIMIT
+    context_factory: Callable[[], ssl.SSLContext] = field(
+        default_factory=lambda: _system_tls_context,
+        repr=False,
+        compare=False,
+    )
 
     def request(
         self,
@@ -103,8 +122,16 @@ class GitHubHttpsTransport:
     ) -> HttpResponse:
         if self.host != _API_HOST or not path.startswith("/") or "?" in path or "#" in path:
             raise HttpTransportError
-        connection = http.client.HTTPSConnection(self.host, timeout=timeout.connect_seconds)
+        connection: http.client.HTTPSConnection | None = None
         try:
+            context = self.context_factory()
+            if context.verify_mode != ssl.CERT_REQUIRED or not context.check_hostname:
+                raise HttpTransportError
+            connection = http.client.HTTPSConnection(
+                self.host,
+                timeout=timeout.connect_seconds,
+                context=context,
+            )
             connection.request(method, path, body=body, headers=dict(headers))
             response = connection.getresponse()
             if connection.sock is not None:
@@ -117,12 +144,15 @@ class GitHubHttpsTransport:
                 body=payload,
                 rate_limit_remaining=response.getheader("X-RateLimit-Remaining"),
             )
+        except ssl.SSLCertVerificationError:
+            raise HttpTlsVerificationError from None
         except TimeoutError:
             raise HttpTimeoutError from None
         except (OSError, ValueError, UnicodeError, http.client.HTTPException):
             raise HttpTransportError from None
         finally:
-            connection.close()
+            if connection is not None:
+                connection.close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +212,7 @@ class GitHubApiAdapter:
         except GitHubOperationError as error:
             if error.code in {
                 "github_timeout",
+                "github_tls_verification_failed",
                 "github_transport_failed",
                 "github_server_failed",
                 "github_unexpected_response",
@@ -230,6 +261,8 @@ class GitHubApiAdapter:
             )
             try:
                 return self.transport.request(method, path, headers, body, self.timeout)
+            except HttpTlsVerificationError:
+                raise GitHubOperationError("github_tls_verification_failed") from None
             except HttpTimeoutError:
                 raise GitHubOperationError("github_timeout") from None
             except HttpTransportError:

@@ -30,6 +30,8 @@ See [ATTRIBUTION.md](ATTRIBUTION.md) for the modification notice and
 - Direct-child destination validation and exclusive starter-file creation.
 - Allowlisted Git commands, exact staging, and bounded diagnostics/timeouts.
 - Explicit private-by-default GitHub repository creation and `main` push.
+- Request-scoped native system certificate trust for GitHub HTTPS without
+  global SSL injection or verification bypasses.
 - Credential loading from process state or one explicit ignored environment
   file; tokens never appear in CLI arguments, remotes, or diagnostics.
 - Optional VS Code or PyCharm launch only after all requested creation succeeds.
@@ -138,6 +140,12 @@ collaborator permissions are not used by the API adapter. If account policy
 requires a classic token, `public_repo` supports public creation while `repo`
 is required for private creation and is broader than this tool's API use.
 
+GitHub API requests use a request-scoped native system trust context supplied
+by the bounded `truststore` runtime dependency. Certificate and hostname
+verification remain mandatory; certificate failures return the redacted
+`github_tls_verification_failed` result. The application never injects a global
+SSL context or loads bundled/private certificate files.
+
 Pushing does not place the API token in the remote URL or Git environment.
 Configure a Git credential manager separately for the HTTPS push.
 
@@ -217,6 +225,7 @@ Dependabot proposes bounded weekly pip and GitHub Actions updates.
 - Only GitHub HTTPS remotes are supported.
 - Only VS Code and PyCharm are supported IDE choices.
 - Existing projects and repositories are never imported or adopted.
+- The operating system certificate store must trust the GitHub API connection.
 - Automatic remote deletion and force cleanup are intentionally unavailable.
 - This project has not received an independent professional security audit.
 - Screenshots and claims based on live external execution are intentionally

@@ -25,6 +25,8 @@ def test_package_import_has_no_external_side_effects(
             module_name == "project_creation_automation"
             or module_name.startswith("project_creation_automation.")
             or module_name == "tools.verify_wheel"
+            or module_name == "truststore"
+            or module_name.startswith("truststore.")
         ):
             del sys.modules[module_name]
 
@@ -56,6 +58,7 @@ def test_package_import_has_no_external_side_effects(
     assert imported.__version__ == "1.0.0rc1"
     assert "dotenv" not in sys.modules
     assert "requests" not in sys.modules
+    assert "truststore" not in sys.modules
     assert not {
         "tkinter",
         "PyQt5",

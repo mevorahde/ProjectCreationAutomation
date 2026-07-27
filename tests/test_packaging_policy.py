@@ -47,6 +47,7 @@ def test_python_license_attribution_and_entry_point_metadata() -> None:
     assert project["scripts"] == {
         "project-create": "project_creation_automation.cli:main"
     }
+    assert project["dependencies"] == ["truststore>=0.10.4,<0.11"]
     assert project["urls"] == {
         "Homepage": "https://github.com/mevorahde/ProjectCreationAutomation",
         "Repository": "https://github.com/mevorahde/ProjectCreationAutomation",
@@ -159,6 +160,12 @@ def _synthetic_wheel(path: Path, *, include_legacy: bool = False) -> None:
             "Version: 1.0.0rc1",
             "License-Expression: GPL-3.0-or-later",
             "Requires-Python: >=3.10,<3.14",
+            "Requires-Dist: truststore<0.11,>=0.10.4",
+            'Requires-Dist: build<2,>=1.2; extra == "dev"',
+            'Requires-Dist: mypy<2,>=1.15; extra == "dev"',
+            'Requires-Dist: pytest<10,>=8.3; extra == "dev"',
+            'Requires-Dist: ruff<1,>=0.11; extra == "dev"',
+            'Requires-Dist: tomli<3,>=2; python_version < "3.11" and extra == "dev"',
             "Project-URL: Homepage, https://github.com/mevorahde/ProjectCreationAutomation",
             "Project-URL: Issues, https://github.com/mevorahde/ProjectCreationAutomation/issues",
             "Project-URL: Repository, https://github.com/mevorahde/ProjectCreationAutomation",

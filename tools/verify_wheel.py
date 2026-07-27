@@ -11,6 +11,16 @@ _EXPECTED_NAME = "project-creation-automation"
 _EXPECTED_VERSION = "1.0.0rc1"
 _EXPECTED_LICENSE = "GPL-3.0-or-later"
 _EXPECTED_PYTHON = frozenset({">=3.10", "<3.14"})
+_EXPECTED_DEPENDENCIES = frozenset(
+    {
+        "truststore<0.11,>=0.10.4",
+        'build<2,>=1.2; extra == "dev"',
+        'mypy<2,>=1.15; extra == "dev"',
+        'pytest<10,>=8.3; extra == "dev"',
+        'ruff<1,>=0.11; extra == "dev"',
+        'tomli<3,>=2; python_version < "3.11" and extra == "dev"',
+    }
+)
 _ENTRY_POINT = "project-create = project_creation_automation.cli:main"
 _EXPECTED_URLS = frozenset(
     {
@@ -91,6 +101,8 @@ def verify_wheel(wheel_path: Path) -> None:
     python_range = metadata["Requires-Python"]
     if python_range is None or frozenset(python_range.split(",")) != _EXPECTED_PYTHON:
         raise ValueError("wheel_python_range_invalid")
+    if frozenset(metadata.get_all("Requires-Dist", [])) != _EXPECTED_DEPENDENCIES:
+        raise ValueError("wheel_dependencies_invalid")
     if _ENTRY_POINT not in entry_points.splitlines():
         raise ValueError("wheel_entry_point_invalid")
     if not any(name.endswith(".dist-info/licenses/LICENSE") for name in names):

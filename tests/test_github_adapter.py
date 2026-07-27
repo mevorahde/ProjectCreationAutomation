@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import json
+import ssl
 from collections.abc import Mapping
+from typing import ClassVar
 
 import pytest
 
@@ -11,6 +14,7 @@ from project_creation_automation.adapters.github import (
     HttpResponse,
     HttpTimeout,
     HttpTimeoutError,
+    HttpTlsVerificationError,
     HttpTransportError,
 )
 from project_creation_automation.credentials import SecretToken
@@ -106,6 +110,7 @@ def test_safe_http_error_translation(status: int, rate: str | None, code: str) -
     ("failure", "code"),
     [
         (HttpTimeoutError(), "github_timeout"),
+        (HttpTlsVerificationError(), "github_tls_verification_failed"),
         (HttpTransportError(), "github_transport_failed"),
     ],
 )
@@ -119,6 +124,119 @@ def test_transport_failures_are_redacted(
         )
 
     assert captured.value.code == code
+
+
+class _FakeSocket:
+    def __init__(self) -> None:
+        self.timeout: float | None = None
+
+    def settimeout(self, timeout: float) -> None:
+        self.timeout = timeout
+
+
+class _FakeHttpsResponse:
+    status = 200
+
+    def read(self, limit: int) -> bytes:
+        assert limit == 65_537
+        return b"{}"
+
+    def getheader(self, name: str) -> None:
+        assert name == "X-RateLimit-Remaining"
+        return None
+
+
+class _FakeHttpsConnection:
+    instances: ClassVar[list[_FakeHttpsConnection]] = []
+
+    def __init__(
+        self,
+        host: str,
+        *,
+        timeout: float,
+        context: ssl.SSLContext,
+    ) -> None:
+        self.host = host
+        self.connect_timeout = timeout
+        self.context = context
+        self.sock = _FakeSocket()
+        self.request_call: tuple[str, str, bytes | None, dict[str, str]] | None = None
+        self.closed = False
+        self.instances.append(self)
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: bytes | None,
+        headers: dict[str, str],
+    ) -> None:
+        self.request_call = (method, path, body, headers)
+
+    def getresponse(self) -> _FakeHttpsResponse:
+        return _FakeHttpsResponse()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_transport_uses_scoped_system_context_and_preserves_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeHttpsConnection.instances.clear()
+    monkeypatch.setattr(http.client, "HTTPSConnection", _FakeHttpsConnection)
+    original_ssl_context = ssl.SSLContext
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    timeout = HttpTimeout(connect_seconds=2.0, read_seconds=4.0)
+
+    response = GitHubHttpsTransport(
+        context_factory=lambda: context
+    ).request("GET", "/", {}, None, timeout)
+
+    connection = _FakeHttpsConnection.instances[0]
+    assert response.status == 200
+    assert connection.host == "api.github.com"
+    assert connection.context is context
+    assert connection.connect_timeout == 2.0
+    assert connection.sock.timeout == 4.0
+    assert connection.request_call == ("GET", "/", None, {})
+    assert connection.closed is True
+    assert ssl.SSLContext is original_ssl_context
+
+
+def test_certificate_failure_has_dedicated_redacted_translation() -> None:
+    raw_diagnostic = "synthetic certificate detail"
+
+    def fail_context() -> ssl.SSLContext:
+        raise ssl.SSLCertVerificationError(1, raw_diagnostic)
+
+    with pytest.raises(HttpTlsVerificationError) as captured:
+        GitHubHttpsTransport(context_factory=fail_context).request(
+            "GET",
+            "/",
+            {},
+            None,
+            HttpTimeout(),
+        )
+
+    assert raw_diagnostic not in repr(captured.value)
+    assert raw_diagnostic not in str(captured.value)
+
+
+def test_default_transport_context_is_native_scoped_and_does_not_patch_ssl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeHttpsConnection.instances.clear()
+    monkeypatch.setattr(http.client, "HTTPSConnection", _FakeHttpsConnection)
+    original_ssl_context = ssl.SSLContext
+
+    GitHubHttpsTransport().request("GET", "/", {}, None, HttpTimeout())
+
+    context = _FakeHttpsConnection.instances[0].context
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    assert ssl.SSLContext is original_ssl_context
+    assert type(context).__module__.startswith("truststore")
 
 
 def test_repository_existence_distinguishes_present_and_absent() -> None:
@@ -214,8 +332,18 @@ def test_oversized_response_fails_closed() -> None:
     assert captured.value.code == "github_response_malformed"
 
 
-def test_ambiguous_creation_transport_failure_is_not_retried() -> None:
-    transport = RecordingTransport([HttpTimeoutError()])
+@pytest.mark.parametrize(
+    ("failure", "code"),
+    [
+        (HttpTimeoutError(), "github_timeout"),
+        (HttpTlsVerificationError(), "github_tls_verification_failed"),
+    ],
+)
+def test_ambiguous_creation_transport_failure_is_not_retried(
+    failure: BaseException,
+    code: str,
+) -> None:
+    transport = RecordingTransport([failure])
 
     with pytest.raises(GitHubCreationUncertainError) as captured:
         GitHubApiAdapter(transport=transport).create_repository(
@@ -225,7 +353,7 @@ def test_ambiguous_creation_transport_failure_is_not_retried() -> None:
             _token(),
         )
 
-    assert captured.value.code == "github_timeout"
+    assert captured.value.code == code
     assert len(transport.calls) == 1
 
 

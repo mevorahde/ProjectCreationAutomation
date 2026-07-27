@@ -36,6 +36,13 @@ representations and diagnostics, and are removed from Git and IDE child
 environments. Python cannot guarantee erasure of every immutable in-memory
 copy. Git pushes use the user's separately configured credential manager.
 
+GitHub API HTTPS uses a request-scoped native system certificate-store context
+through a bounded `truststore` dependency. Certificate and hostname validation
+remain required. The application does not globally patch SSL, disable
+verification, trust arbitrary private certificates, bypass hostnames, or pin
+server certificates. The operating-system trust store and its administrators
+remain external security boundaries.
+
 Subprocesses use argument vectors and `shell=False`. Git operations are
 allowlisted and bounded; IDE discovery accepts only reviewed launcher names
 from `PATH`. Even with these controls, Git, credential managers, HTTPS/TLS,

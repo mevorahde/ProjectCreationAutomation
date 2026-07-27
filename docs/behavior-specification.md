@@ -116,11 +116,15 @@ captured bounded output, timeouts, and explicit starter-file staging. Hooks and
 commit signing are disabled for the generated commit without changing
 configuration. If author identity is unavailable, no identity is configured.
 
-The GitHub API origin is fixed to HTTPS. Requests use Bearer authentication,
-versioned API headers, bounded connect/read timeouts and response bodies, and no
-automatic retry of repository-creation POST requests. Authentication,
-authorization, rate-limit, conflict, timeout, transport, malformed response,
-and server failures become predefined redacted errors.
+The GitHub API origin is fixed to HTTPS. Each request receives a scoped native
+system certificate-store context from the bounded `truststore` dependency.
+Hostname and certificate verification are mandatory; there is no global SSL
+injection, custom hostname bypass, private CA bundle, pinning, or unverified
+mode. Requests use Bearer authentication, versioned API headers, bounded
+connect/read timeouts and response bodies, and no automatic retry of
+repository-creation POST requests. Authentication, authorization, rate-limit,
+conflict, TLS verification, timeout, transport, malformed response, and server
+failures become predefined redacted errors.
 
 Before repository creation, failures use the bounded local rollback policy.
 Once GitHub reports successful creation, automatic remote deletion is forbidden.

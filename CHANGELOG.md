@@ -5,6 +5,8 @@ intent, while release publication remains deferred.
 
 ## Unreleased
 
+- Added request-scoped native system certificate trust for GitHub HTTPS and a
+  dedicated redacted TLS-verification failure result.
 - Live GitHub/Git/IDE integration review.
 - Pull-request review, branch standardization, and release publication.
 
