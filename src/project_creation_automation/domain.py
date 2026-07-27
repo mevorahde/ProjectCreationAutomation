@@ -94,6 +94,22 @@ class GitOperationError(DomainError):
     default_message = "The local Git operation failed."
 
 
+class CredentialError(DomainError):
+    """A GitHub credential could not be loaded safely."""
+
+    default_message = "A GitHub credential could not be loaded safely."
+
+
+class GitHubOperationError(DomainError):
+    """A GitHub operation failed without exposing transport diagnostics."""
+
+    default_message = "The GitHub operation failed safely."
+
+
+class GitHubCreationUncertainError(GitHubOperationError):
+    """A creation request may have succeeded and must not be retried or rolled back."""
+
+
 class GitIdentityError(GitOperationError):
     """Git could not create a commit with the available identity."""
 
@@ -106,7 +122,32 @@ class GitIdentityError(GitOperationError):
 class UnsupportedExecutionError(DomainError):
     """A request includes execution that is unavailable in this stage."""
 
-    default_message = "Only local project and Git creation are available in Stage 3."
+    default_message = "The requested integration is not available."
+
+
+@dataclass(frozen=True, slots=True)
+class GitHubAccount:
+    """Validated GitHub account identity."""
+
+    login: str
+
+    def __repr__(self) -> str:
+        return "GitHubAccount(login=<redacted>)"
+
+
+@dataclass(frozen=True, slots=True)
+class GitHubRepository:
+    """Validated created-repository identity and credential-free remote URL."""
+
+    owner: str
+    name: str
+    remote_url: str
+
+    def __repr__(self) -> str:
+        return (
+            "GitHubRepository(owner=<redacted>, name=<project>, "
+            "remote_url=<canonical-https-url>)"
+        )
 
 
 @dataclass(frozen=True, slots=True)

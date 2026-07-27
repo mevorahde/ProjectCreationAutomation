@@ -1,4 +1,4 @@
-"""Planning-only command-line interface."""
+"""Import-safe local and opt-in GitHub command-line interface."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="project-create",
-        description="Plan projects or create one confirmed local Git project safely.",
+        description="Plan or create a confirmed project; GitHub is explicit opt-in.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan_parser = subparsers.add_parser(
@@ -50,8 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
         "create",
         help="create one confirmed local project and Git repository",
         description=(
-            "Create a local project after fail-closed preflight and explicit confirmation. "
-            "GitHub and IDE execution remain unavailable."
+            "Create a local project after fail-closed preflight and confirmation. "
+            "GitHub is optional; IDE execution remains unavailable."
         ),
     )
     _add_request_arguments(create_parser)
@@ -83,11 +83,17 @@ def run(
         request = ProjectRequest.create(
             project_name=arguments.project_name,
             project_root=arguments.project_root,
-            visibility=Visibility(arguments.visibility),
+            visibility=(
+                Visibility.PUBLIC if arguments.public else Visibility.PRIVATE
+            ),
             ide=IDEChoice(arguments.ide),
             create_github_repository=arguments.github,
             path_flavor=PathFlavor(arguments.path_flavor),
         )
+        if arguments.public and not arguments.github:
+            raise DomainError("public_requires_github")
+        if arguments.env_file is not None and not arguments.github:
+            raise DomainError("env_file_requires_github")
         plan = build_creation_plan(request)
     except DomainError as error:
         errors.write(f"{error.code}: {error.message}\n")
@@ -96,21 +102,26 @@ def run(
     output.write(plan.render())
     output.write("\n")
     if arguments.command == "create":
-        local_orchestrator = orchestrator or LocalCreationOrchestrator(
-            filesystem=BoundedFilesystemAdapter(),
-            git=GitProcessAdapter(),
-            confirmation=(
-                ExplicitConfirmation()
-                if arguments.confirm
-                else ConsoleConfirmation(input_stream, output)
-            ),
-            reporter=StreamOperationalReporter(output),
+        local_orchestrator = orchestrator or _compose_orchestrator(
+            request=request,
+            confirmed=arguments.confirm,
+            input_stream=input_stream,
+            output=output,
         )
-        result = local_orchestrator.execute(request, plan)
-        output.write("github: not-performed\n")
+        result = local_orchestrator.execute(request, plan, env_file=arguments.env_file)
+        if result.remote_repository_created:
+            output.write("github: repository-created\n")
+        elif result.remote_state_requires_recovery:
+            output.write("github: state-uncertain-manual-recovery-required\n")
+        else:
+            output.write("github: not-performed\n")
         output.write("ide: not-performed\n")
         if result.status is ExecutionStatus.SUCCEEDED:
-            output.write("result: local-project-created\n")
+            output.write(
+                "result: github-project-created-and-main-pushed\n"
+                if request.create_github_repository
+                else "result: local-project-created\n"
+            )
             return 0
         if result.status is ExecutionStatus.CANCELLED:
             output.write("result: cancelled-no-changes\n")
@@ -122,9 +133,17 @@ def run(
                 "no identity setting was changed.\n"
             )
         else:
-            errors.write(f"{error_code}: local creation failed.\n")
+            errors.write(f"{error_code}: project creation failed safely.\n")
         if result.status is ExecutionStatus.MANUAL_CLEANUP_REQUIRED:
-            errors.write("manual_cleanup_required: preserve the project directory for review.\n")
+            if result.remote_state_requires_recovery:
+                errors.write(
+                    "manual_recovery_required: preserve both local and remote state; "
+                    "automatic remote deletion was not attempted.\n"
+                )
+            else:
+                errors.write(
+                    "manual_cleanup_required: preserve the project directory for review.\n"
+                )
             return EXIT_MANUAL_CLEANUP_REQUIRED
         return EXIT_CREATION_FAILED
     return 0
@@ -145,11 +164,16 @@ def _add_request_arguments(parser: argparse.ArgumentParser) -> None:
         required=True,
         help="absolute approved project root (redacted from plan output)",
     )
-    parser.add_argument(
-        "--visibility",
-        choices=[choice.value for choice in Visibility],
-        default=Visibility.PRIVATE.value,
-        help="future remote visibility (default: private)",
+    visibility = parser.add_mutually_exclusive_group()
+    visibility.add_argument(
+        "--public",
+        action="store_true",
+        help="explicitly create a public GitHub repository (requires --github)",
+    )
+    visibility.add_argument(
+        "--private",
+        action="store_true",
+        help="explicitly retain the private GitHub default",
     )
     parser.add_argument(
         "--ide",
@@ -160,11 +184,52 @@ def _add_request_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--github",
         action="store_true",
-        help="include optional GitHub steps in the dry-run plan",
+        help="opt in to GitHub repository creation and push",
+    )
+    parser.add_argument(
+        "--env-file",
+        help=(
+            "explicit ignored token file; read only during GitHub create execution "
+            "(path is never printed)"
+        ),
     )
     parser.add_argument(
         "--path-flavor",
         choices=[choice.value for choice in PathFlavor],
         default=PathFlavor.native().value,
         help=argparse.SUPPRESS,
+    )
+
+
+def _compose_orchestrator(
+    *,
+    request: ProjectRequest,
+    confirmed: bool,
+    input_stream: TextIO,
+    output: TextIO,
+) -> LocalCreationOrchestrator:
+    """Construct production adapters only inside a create execution path."""
+
+    credential_provider = None
+    github = None
+    if request.create_github_repository:
+        from project_creation_automation.adapters.github import (
+            GitHubApiAdapter,
+            GitHubHttpsTransport,
+        )
+        from project_creation_automation.credentials import EnvironmentCredentialProvider
+
+        credential_provider = EnvironmentCredentialProvider()
+        github = GitHubApiAdapter(transport=GitHubHttpsTransport())
+    return LocalCreationOrchestrator(
+        filesystem=BoundedFilesystemAdapter(),
+        git=GitProcessAdapter(),
+        confirmation=(
+            ExplicitConfirmation()
+            if confirmed
+            else ConsoleConfirmation(input_stream, output)
+        ),
+        reporter=StreamOperationalReporter(output),
+        credential_provider=credential_provider,
+        github=github,
     )

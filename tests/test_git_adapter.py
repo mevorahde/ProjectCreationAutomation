@@ -10,6 +10,7 @@ from project_creation_automation.adapters.git import (
     GitProcessAdapter,
     SystemProcessRunner,
 )
+from project_creation_automation.credentials import CANONICAL_TOKEN_NAME, LEGACY_TOKEN_NAME
 from project_creation_automation.domain import GitIdentityError, GitOperationError
 
 
@@ -96,6 +97,8 @@ def test_system_runner_uses_shell_false_and_bounded_process_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
+    monkeypatch.setenv(CANONICAL_TOKEN_NAME, "synthetic-process-token")
+    monkeypatch.setenv(LEGACY_TOKEN_NAME, "synthetic-legacy-token")
 
     def fake_run(arguments: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         captured["arguments"] = arguments
@@ -115,6 +118,10 @@ def test_system_runner_uses_shell_false_and_bounded_process_options(
     assert captured["capture_output"] is True
     assert captured["timeout"] == 7.0
     assert captured["stdin"] == subprocess.DEVNULL
+    child_environment = captured["env"]
+    assert isinstance(child_environment, dict)
+    assert CANONICAL_TOKEN_NAME not in child_environment
+    assert LEGACY_TOKEN_NAME not in child_environment
 
 
 def test_missing_git_is_redacted() -> None:
@@ -194,3 +201,88 @@ def test_stage_allowlist_rejects_broad_or_extra_paths() -> None:
         adapter.stage_exact(Path("project"), (".",))
     with pytest.raises(GitOperationError):
         adapter.stage_exact(Path("project"), ("README.md", ".gitignore", "extra"))
+
+
+def test_exact_remote_argument_lists() -> None:
+    cwd = Path("project")
+    remote_url = "https://github.com/safe-owner/safe-project.git"
+    runner = RecordingRunner([_completed(), _completed(), _completed()])
+    adapter = GitProcessAdapter(runner=runner)
+
+    adapter.verify_origin_absent(cwd)
+    adapter.add_origin(cwd, remote_url)
+    adapter.push_main(cwd)
+
+    assert runner.calls == [
+        (("git", "remote"), cwd),
+        (("git", "remote", "add", "origin", remote_url), cwd),
+        (("git", "push", "--set-upstream", "origin", "main"), cwd),
+    ]
+    flattened = [argument for call, _ in runner.calls for argument in call]
+    assert "--force" not in flattened
+    assert "--tags" not in flattened
+    assert "credential.helper" not in flattened
+    assert "fetch" not in flattened
+    assert "pull" not in flattened
+    assert "clone" not in flattened
+    assert "-A" not in flattened
+
+
+def test_existing_origin_is_never_replaced() -> None:
+    adapter = GitProcessAdapter(
+        runner=RecordingRunner([_completed(stdout="upstream\norigin\n")])
+    )
+
+    with pytest.raises(GitOperationError) as captured:
+        adapter.verify_origin_absent(Path("project"))
+
+    assert captured.value.code == "git_origin_already_exists"
+
+
+@pytest.mark.parametrize(
+    "remote_url",
+    [
+        "http://github.com/owner/project.git",
+        "https://token@github.com/owner/project.git",
+        "https://github.com/owner/project.git?token=value",
+        "https://example.com/owner/project.git",
+        "git@github.com:owner/project.git",
+    ],
+)
+def test_token_bearing_or_noncanonical_remote_urls_are_rejected(
+    remote_url: str,
+) -> None:
+    runner = RecordingRunner()
+    adapter = GitProcessAdapter(runner=runner)
+
+    with pytest.raises(GitOperationError) as captured:
+        adapter.add_origin(Path("project"), remote_url)
+
+    assert captured.value.code == "git_remote_url_invalid"
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize(
+    ("method", "code"),
+    [
+        ("verify_origin_absent", "git_remote_check_failed"),
+        ("add_origin", "git_remote_add_failed"),
+        ("push_main", "git_push_failed"),
+    ],
+)
+def test_remote_failures_are_redacted(method: str, code: str) -> None:
+    adapter = GitProcessAdapter(
+        runner=RecordingRunner([_completed(1, stderr="raw remote diagnostic")])
+    )
+    cwd = Path("project")
+
+    with pytest.raises(GitOperationError) as captured:
+        if method == "verify_origin_absent":
+            adapter.verify_origin_absent(cwd)
+        elif method == "add_origin":
+            adapter.add_origin(cwd, "https://github.com/owner/project.git")
+        else:
+            adapter.push_main(cwd)
+
+    assert captured.value.code == code
+    assert "raw remote diagnostic" not in str(captured.value)

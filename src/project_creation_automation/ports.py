@@ -5,7 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
-from project_creation_automation.domain import IDEChoice, ProjectLocation, Visibility
+from project_creation_automation.credentials import SecretToken
+from project_creation_automation.domain import (
+    GitHubAccount,
+    GitHubRepository,
+    IDEChoice,
+    ProjectLocation,
+    Visibility,
+)
 from project_creation_automation.planning import CreationPlan
 
 
@@ -75,7 +82,7 @@ class LocalFilesystemPort(Protocol):
 
 
 class LocalGitPort(Protocol):
-    """Local-only Git operations for Stage 3."""
+    """Allowlisted local and remote Git operations."""
 
     def verify_available(self, cwd: Path) -> None: ...
 
@@ -86,3 +93,36 @@ class LocalGitPort(Protocol):
     def verify_staged_exact(self, cwd: Path, paths: tuple[str, ...]) -> None: ...
 
     def create_initial_commit(self, cwd: Path) -> None: ...
+
+    def verify_origin_absent(self, cwd: Path) -> None: ...
+
+    def add_origin(self, cwd: Path, remote_url: str) -> None: ...
+
+    def push_main(self, cwd: Path) -> None: ...
+
+
+class CredentialProviderPort(Protocol):
+    """Explicit GitHub credential loading boundary."""
+
+    def load(self, env_file: str | None = None) -> SecretToken: ...
+
+
+class SecureGitHubPort(Protocol):
+    """Narrow GitHub account and repository boundary."""
+
+    def resolve_account(self, token: SecretToken) -> GitHubAccount: ...
+
+    def repository_exists(
+        self,
+        account: GitHubAccount,
+        project_name: str,
+        token: SecretToken,
+    ) -> bool: ...
+
+    def create_repository(
+        self,
+        account: GitHubAccount,
+        project_name: str,
+        visibility: Visibility,
+        token: SecretToken,
+    ) -> GitHubRepository: ...

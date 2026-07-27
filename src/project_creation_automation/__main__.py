@@ -1,4 +1,4 @@
-"""Module entry point for the planning-only CLI."""
+"""Module entry point for the import-safe CLI."""
 
 from project_creation_automation.cli import main
 

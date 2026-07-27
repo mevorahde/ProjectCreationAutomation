@@ -13,12 +13,15 @@ from project_creation_automation.cli import (
     build_parser,
     run,
 )
+from project_creation_automation.domain import Visibility
 from project_creation_automation.execution import LocalCreationOrchestrator
 from project_creation_automation.fakes import (
     FakeConfirmation,
+    FakeCredentialProvider,
     FakeLocalFilesystem,
     FakeLocalGit,
     FakeOperationalReporter,
+    FakeSecureGitHub,
 )
 
 
@@ -253,3 +256,168 @@ def test_cli_exposes_no_token_argument() -> None:
 
     assert "--token" not in help_text
     assert "--password" not in help_text
+
+
+def _remote_orchestrator(
+    *,
+    github: FakeSecureGitHub | None = None,
+    git: FakeLocalGit | None = None,
+) -> LocalCreationOrchestrator:
+    return LocalCreationOrchestrator(
+        FakeLocalFilesystem(),
+        git or FakeLocalGit(),
+        FakeConfirmation(answer=True),
+        FakeOperationalReporter(),
+        FakeCredentialProvider(),
+        github or FakeSecureGitHub(),
+    )
+
+
+def test_github_create_is_private_by_default_and_reports_success() -> None:
+    output = io.StringIO()
+    errors = io.StringIO()
+    github = FakeSecureGitHub()
+
+    exit_code = run(
+        [
+            "create",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--github",
+            "--confirm",
+        ],
+        stdout=output,
+        stderr=errors,
+        orchestrator=_remote_orchestrator(github=github),
+    )
+
+    assert exit_code == 0
+    assert github.visibilities == [Visibility.PRIVATE]
+    assert "github: repository-created" in output.getvalue()
+    assert "result: github-project-created-and-main-pushed" in output.getvalue()
+    assert errors.getvalue() == ""
+
+
+def test_public_github_create_requires_explicit_flag() -> None:
+    github = FakeSecureGitHub()
+
+    exit_code = run(
+        [
+            "create",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--github",
+            "--public",
+            "--confirm",
+        ],
+        stdout=io.StringIO(),
+        stderr=io.StringIO(),
+        orchestrator=_remote_orchestrator(github=github),
+    )
+
+    assert exit_code == 0
+    assert github.visibilities == [Visibility.PUBLIC]
+
+
+def test_public_without_github_and_env_file_without_github_are_rejected() -> None:
+    for option in ("--public", "--env-file"):
+        arguments = [
+            "plan",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            option,
+        ]
+        if option == "--env-file":
+            arguments.append("not-opened.env")
+        output = io.StringIO()
+        errors = io.StringIO()
+
+        exit_code = run(arguments, stdout=output, stderr=errors)
+
+        assert exit_code == EXIT_INVALID_REQUEST
+        assert output.getvalue() == ""
+        assert "not-opened.env" not in errors.getvalue()
+
+
+def test_conflicting_visibility_flags_are_rejected_by_parser() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as captured:
+        parser.parse_args(
+            [
+                "plan",
+                "safe-project",
+                "--root",
+                "/approved/projects",
+                "--github",
+                "--public",
+                "--private",
+            ]
+        )
+
+    assert captured.value.code == 2
+
+
+def test_plan_with_env_file_never_composes_or_executes_adapters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "_compose_orchestrator",
+        lambda **kwargs: pytest.fail("execution adapters were composed"),
+    )
+    output = io.StringIO()
+
+    exit_code = run(
+        [
+            "plan",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--github",
+            "--env-file",
+            "never-opened.env",
+        ],
+        stdout=output,
+        stderr=io.StringIO(),
+    )
+
+    assert exit_code == 0
+    assert "never-opened.env" not in output.getvalue()
+
+
+def test_remote_manual_recovery_output_is_redacted() -> None:
+    output = io.StringIO()
+    errors = io.StringIO()
+
+    exit_code = run(
+        [
+            "create",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--github",
+            "--confirm",
+        ],
+        stdout=output,
+        stderr=errors,
+        orchestrator=_remote_orchestrator(git=FakeLocalGit(fail_at="push_main")),
+    )
+
+    assert exit_code == EXIT_MANUAL_CLEANUP_REQUIRED
+    assert "github: repository-created" in output.getvalue()
+    assert "automatic remote deletion was not attempted" in errors.getvalue()
+    assert "/approved/projects" not in errors.getvalue()

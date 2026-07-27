@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import importlib
 import os
 import socket
@@ -27,6 +28,7 @@ def test_package_import_has_no_external_side_effects(
     monkeypatch.setattr(os, "system", _unexpected_effect)
     monkeypatch.setattr(os, "getenv", _unexpected_effect)
     monkeypatch.setattr(socket, "create_connection", _unexpected_effect)
+    monkeypatch.setattr(http.client.HTTPSConnection, "request", _unexpected_effect)
     monkeypatch.setattr(subprocess, "Popen", _unexpected_effect)
     monkeypatch.setattr(subprocess, "run", _unexpected_effect)
     monkeypatch.setattr(Path, "mkdir", _unexpected_effect)
@@ -36,10 +38,12 @@ def test_package_import_has_no_external_side_effects(
     imported = importlib.import_module("project_creation_automation")
     importlib.import_module("project_creation_automation.adapters.filesystem")
     importlib.import_module("project_creation_automation.adapters.git")
+    importlib.import_module("project_creation_automation.adapters.github")
+    importlib.import_module("project_creation_automation.credentials")
     importlib.import_module("project_creation_automation.execution")
     importlib.import_module("project_creation_automation.cli")
 
-    assert imported.__version__ == "0.3.0.dev0"
+    assert imported.__version__ == "0.4.0.dev0"
     assert "dotenv" not in sys.modules
     assert "requests" not in sys.modules
 

@@ -76,7 +76,19 @@ def test_successful_orchestration_and_journal_order() -> None:
     result = orchestrator.execute(request, build_creation_plan(request))
 
     assert result.status is ExecutionStatus.SUCCEEDED
-    assert result.completed_steps == tuple(OperationStep)
+    assert result.completed_steps == (
+        OperationStep.FILESYSTEM_PREFLIGHT,
+        OperationStep.GIT_PREFLIGHT,
+        OperationStep.CONFIRMATION,
+        OperationStep.CREATE_DIRECTORY,
+        OperationStep.CREATE_STARTER_FILES,
+        OperationStep.LOCAL_PROJECT_CREATED,
+        OperationStep.INITIALIZE_GIT,
+        OperationStep.STAGE_STARTER_FILES,
+        OperationStep.VERIFY_GIT_INDEX,
+        OperationStep.CREATE_INITIAL_COMMIT,
+        OperationStep.LOCAL_GIT_COMMIT_CREATED,
+    )
     assert filesystem.calls == [
         "preflight",
         "create_project_directory",
@@ -141,21 +153,18 @@ def test_git_identity_failure_can_require_manual_cleanup() -> None:
     assert reporter.events[-1] == OperationEvent.MANUAL_CLEANUP_REQUIRED.value
 
 
-def test_github_and_ide_requests_never_reach_adapters() -> None:
-    for request in (
-        _request(github=True),
-        _request(ide=IDEChoice.VISUAL_STUDIO_CODE),
-    ):
-        orchestrator, filesystem, git, confirmation, reporter = _orchestrator()
+def test_ide_request_never_reaches_adapters() -> None:
+    request = _request(ide=IDEChoice.VISUAL_STUDIO_CODE)
+    orchestrator, filesystem, git, confirmation, reporter = _orchestrator()
 
-        result = orchestrator.execute(request, build_creation_plan(request))
+    result = orchestrator.execute(request, build_creation_plan(request))
 
-        assert result.status is ExecutionStatus.FAILED
-        assert result.error_code == "non_local_execution_unavailable"
-        assert filesystem.calls == []
-        assert git.calls == []
-        assert confirmation.calls == 0
-        assert reporter.events == [OperationEvent.OPERATION_FAILED.value]
+    assert result.status is ExecutionStatus.FAILED
+    assert result.error_code == "ide_execution_unavailable"
+    assert filesystem.calls == []
+    assert git.calls == []
+    assert confirmation.calls == 0
+    assert reporter.events == [OperationEvent.OPERATION_FAILED.value]
 
 
 def test_reporter_and_results_never_contain_paths_or_diagnostics() -> None:

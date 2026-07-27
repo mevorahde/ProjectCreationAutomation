@@ -8,8 +8,9 @@ published by Kalle Hallden.
 David Mevorah has substantially revised the project over time and is leading
 the current modernization. This work includes safer behavioral requirements, a
 cross-platform Python package foundation, typed domain models, validation,
-planning, test seams, and bounded, explicitly confirmed Stage 3 local filesystem
-and Git execution. GitHub and IDE execution remain outside this stage.
+planning, test seams, bounded local filesystem and Git execution, and Stage 4's
+secure opt-in GitHub API and remote Git flow. IDE execution remains outside this
+stage.
 
 This notice describes the project's provenance without claiming independent
 authorship of the inherited concept or implementation. Git history is retained

@@ -6,7 +6,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from project_creation_automation.adapters.filesystem import RollbackStatus
+from project_creation_automation.credentials import SecretToken
 from project_creation_automation.domain import (
+    CredentialError,
+    GitHubAccount,
+    GitHubCreationUncertainError,
+    GitHubOperationError,
+    GitHubRepository,
     GitIdentityError,
     GitOperationError,
     IDEChoice,
@@ -143,9 +149,90 @@ class FakeLocalGit:
     def create_initial_commit(self, cwd: Path) -> None:
         self._call("create_initial_commit")
 
+    def verify_origin_absent(self, cwd: Path) -> None:
+        self._call("verify_origin_absent")
+
+    def add_origin(self, cwd: Path, remote_url: str) -> None:
+        del remote_url
+        self._call("add_origin")
+
+    def push_main(self, cwd: Path) -> None:
+        self._call("push_main")
+
     def _call(self, name: str) -> None:
         self.calls.append(name)
         if self.fail_at == name:
             if self.identity_failure:
                 raise GitIdentityError("git_identity_unavailable")
             raise GitOperationError(f"{name}_failed")
+
+
+@dataclass(slots=True)
+class FakeCredentialProvider:
+    """Credential fake that never depends on process state."""
+
+    calls: list[str] = field(default_factory=list)
+    fail: bool = False
+    issued_token: SecretToken | None = None
+
+    def load(self, env_file: str | None = None) -> SecretToken:
+        self.calls.append("load_file" if env_file is not None else "load_environment")
+        if self.fail:
+            raise CredentialError("github_token_unavailable")
+        token = SecretToken.from_text("synthetic-test-token", "synthetic")
+        self.issued_token = token
+        return token
+
+
+@dataclass(slots=True)
+class FakeSecureGitHub:
+    """Deterministic GitHub fake with selectable remote failures."""
+
+    calls: list[str] = field(default_factory=list)
+    visibilities: list[Visibility] = field(default_factory=list)
+    exists: bool = False
+    fail_at: str | None = None
+    uncertain_failure: bool = False
+
+    def resolve_account(self, token: SecretToken) -> GitHubAccount:
+        del token
+        self._call("resolve_account")
+        return GitHubAccount("test-owner")
+
+    def repository_exists(
+        self,
+        account: GitHubAccount,
+        project_name: str,
+        token: SecretToken,
+    ) -> bool:
+        del account, project_name, token
+        self._call("repository_exists")
+        return self.exists
+
+    def create_repository(
+        self,
+        account: GitHubAccount,
+        project_name: str,
+        visibility: Visibility,
+        token: SecretToken,
+    ) -> GitHubRepository:
+        del token
+        self._call("create_repository")
+        self.visibilities.append(visibility)
+        return GitHubRepository(
+            owner=account.login,
+            name=project_name,
+            remote_url=f"https://github.com/{account.login}/{project_name}.git",
+        )
+
+    def _call(self, name: str) -> None:
+        self.calls.append(name)
+        if self.fail_at == name:
+            if self.uncertain_failure and name == "create_repository":
+                raise GitHubCreationUncertainError("github_timeout")
+            code = (
+                "github_repository_conflict"
+                if name == "create_repository"
+                else f"github_{name}_failed"
+            )
+            raise GitHubOperationError(code)
