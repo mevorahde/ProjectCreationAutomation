@@ -1,201 +1,228 @@
 # ProjectCreationAutomation
 
-ProjectCreationAutomation is a safety-first, cross-platform Python tool for
-planning and creating bounded local Git projects, with explicit opt-in GitHub
-repository creation and push.
+ProjectCreationAutomation is a safety-first command-line tool for creating one
+bounded local Python project and Git repository, with explicit opt-in GitHub
+creation/push and optional post-success IDE launch. It emphasizes reviewable
+plans, conservative failure handling, narrow external boundaries, and
+credential-safe diagnostics.
 
-## Stage 5 status
+`1.0.0rc1` is a release candidate. The local, packaging, and isolated adapter
+boundaries are extensively tested; live GitHub/Git/IDE integration and release
+publication remain deferred.
 
-The `project-create` CLI validates every request and prints a deterministic,
-redacted plan before execution. It can create one local project directory,
-initialize Git with `main`, create two starter files, stage only those files,
-and create one initial commit. With `--github`, it can additionally authenticate
-to GitHub, fail closed if the repository exists, create one repository, add one
-credential-free HTTPS `origin`, and push only `main`.
+## Provenance and license
 
-Local-only operation remains the default. It does not load credentials, contact
-GitHub, configure remotes, or push unless `create --github` is explicitly used.
-It never loads an environment file during import, help, validation, or planning.
-An optional post-success IDE launch supports only Visual Studio Code and
-PyCharm. The default is `none`; planning, cancellation, and failed or
-manual-recovery creation never discover or launch an IDE. The retained legacy
-scripts are never used.
+This GPL-3.0-or-later project is a substantial security-focused modernization
+of Tim Eichinger's Windows implementation, which was inspired by Kalle
+Hallden's original project-automation concept. David Mevorah leads the current
+modernization. The original concept and historical implementation are not
+claimed as independent work.
 
-Git author identity must already be available to Git. The application does not
-change repository, global, or system identity settings.
+See [ATTRIBUTION.md](ATTRIBUTION.md) for the modification notice and
+[LICENSE](LICENSE) for the GNU General Public License, version 3 or later.
 
-## Supported Python versions
+## Features
 
-The new package targets Python 3.10 through 3.13.
+- Python 3.10–3.13 on Linux and Windows.
+- Deterministic, redacted plans with no external access.
+- Local-only, private visibility, and no IDE by default.
+- Explicit default-no confirmation before the first mutation.
+- Direct-child destination validation and exclusive starter-file creation.
+- Allowlisted Git commands, exact staging, and bounded diagnostics/timeouts.
+- Explicit private-by-default GitHub repository creation and `main` push.
+- Credential loading from process state or one explicit ignored environment
+  file; tokens never appear in CLI arguments, remotes, or diagnostics.
+- Optional VS Code or PyCharm launch only after all requested creation succeeds.
+- Identity-aware rollback before remote creation and manual recovery afterward.
+- Typed ports/adapters, in-memory fakes, strict static analysis, and isolated
+  tests.
 
-For an isolated development installation:
+## Architecture and safety model
+
+The package separates pure request validation/planning from side-effecting
+adapters:
+
+1. The CLI parses a fixed option set.
+2. Domain models validate names, visibility, IDE choice, and direct-child path
+   containment without filesystem access.
+3. The planner renders a redacted, deterministic operation sequence.
+4. The orchestrator performs fail-closed preflight and confirmation.
+5. Injected filesystem, Git, GitHub, credential, and IDE adapters perform only
+   their reviewed operations.
+
+Help and `plan` never read credentials, discover an IDE, invoke Git, contact
+GitHub, or create files. `create` rejects an existing or ambiguous destination.
+Rollback removes only identities created by the current invocation and refuses
+unsafe cleanup. After a GitHub repository may exist, automatic remote deletion
+is forbidden and both states are preserved for manual recovery.
+
+See [the architecture overview](docs/architecture.md),
+[the behavior specification](docs/behavior-specification.md), and
+[the security policy](SECURITY.md) for boundary details.
+
+## Installation
+
+From a checked-out source tree:
+
+```text
+python -m pip install .
+```
+
+For development:
 
 ```text
 python -m pip install -e ".[dev]"
 ```
 
-Print CLI help:
+From a reviewed local wheel:
+
+```text
+python -m pip install project_creation_automation-1.0.0rc1-py3-none-any.whl
+```
+
+Verify the console entry point:
 
 ```text
 project-create --help
 ```
 
-Generate a local-only plan:
+Git must already be available on `PATH`, with an author identity configured for
+commits. The application never modifies Git identity configuration.
+
+## Planning and local creation
+
+Use harmless synthetic names and an approved absolute root:
 
 ```text
-project-create plan example-project --project-root /absolute/approved/root
+project-create plan sample-project --root /srv/projects
 ```
 
-Generate a GitHub-enabled dry-run without loading credentials:
+Planning is a dry-run: it prints `mutation_performed: no` and performs no
+preflight or mutation.
+
+Interactive creation prompts with a default-no confirmation:
 
 ```text
-project-create plan example-project --root /absolute/approved/root --github
+project-create create sample-project --root /srv/projects
 ```
 
-Create locally with an interactive default-no confirmation:
+Deliberate noninteractive confirmation is explicit:
 
 ```text
-project-create create example-project --root /absolute/approved/root
+project-create create sample-project --root /srv/projects --confirm
 ```
 
-For deliberate noninteractive confirmation:
+The approved root must already exist. The destination must not exist. The
+generated project contains only `README.md` and `.gitignore`, followed by one
+initial commit on `main`.
+
+## GitHub-enabled creation
+
+GitHub behavior is never inferred from a token. Request it explicitly:
 
 ```text
-project-create create example-project --root /absolute/approved/root --confirm
+project-create plan sample-project --root /srv/projects --github
+project-create create sample-project --root /srv/projects --github
 ```
 
-Create a private GitHub repository after the same local safeguards:
+Repositories are private by default. Public creation requires both flags:
 
 ```text
-project-create create example-project --root /absolute/approved/root --github
+project-create create sample-project --root /srv/projects --github --public
 ```
 
-Public repositories require the additional explicit choice:
+The GitHub API token is used for account/repository API calls only. Prefer a
+fine-grained token whose repository Administration permission allows repository
+creation under the account's policy. Contents, workflows, secrets, issues, and
+collaborator permissions are not used by the API adapter. If account policy
+requires a classic token, `public_repo` supports public creation while `repo`
+is required for private creation and is broader than this tool's API use.
+
+Pushing does not place the API token in the remote URL or Git environment.
+Configure a Git credential manager separately for the HTTPS push.
+
+## Credential configuration
+
+For explicit `create --github`, precedence is:
+
+1. `GITHUB_TOKEN` in the process environment;
+2. deprecated compatibility alias `gt`;
+3. a file passed with `--env-file`.
+
+Copy [.env.example](.env.example) to an ignored `.env`, set exactly one
+recognized value, restrict its permissions, and pass it explicitly:
 
 ```text
-project-create create example-project --root /absolute/approved/root --github --public
+project-create create sample-project --root /srv/projects --github --env-file .env
 ```
 
-`--private` may restate the safe default. `--private` and `--public` are
-mutually exclusive, and `--public` without `--github` is rejected.
+The parser is UTF-8-only, bounded, literal, and non-interpolating. It rejects
+links/reparse points, directories, duplicates, malformed records, and unsafe
+encoding. Environment files are never loaded during import, help, validation,
+or planning.
 
 ## Optional IDE launch
 
-The selected launcher must already be available on `PATH`. Arbitrary executable
-paths and flags are not accepted.
+Supported choices are exactly:
+
+- `none` (default)
+- `vscode`, discovered as `code`
+- `pycharm`, discovered as `pycharm` or `pycharm64.exe`
+
+The launcher must be on `PATH`; arbitrary executable paths and flags are not
+accepted.
 
 ```text
-project-create create example-project --root /absolute/approved/root --ide vscode
-project-create create example-project --root /absolute/approved/root --ide pycharm
+project-create create sample-project --root /srv/projects --ide vscode
+project-create create sample-project --root /srv/projects --ide pycharm
 ```
 
-VS Code discovery checks only `code`. PyCharm discovery checks only `pycharm`
-and `pycharm64.exe`. The resolved executable and completed project directory
-must be regular, unambiguous paths. Launch uses an argument list, no shell, and
-passes the project directory as exactly one argument.
+IDE discovery and launch occur only after local creation and any requested
+GitHub push succeed. Missing or failed launch is a post-success warning and
+never rolls back the completed project.
 
-IDE launch occurs only after local creation—and, when requested, GitHub creation
-and push—has succeeded. Launcher absence or process-start failure is reported as
-a warning while the completed project remains successful and is never rolled
-back.
+## Failure and recovery
 
-## GitHub credentials
+Before remote creation, failures use identity-aware rollback when cleanup can be
+proven safe. Unexpected content, replaced paths, symlink/reparse ambiguity, or
+partial Git state causes preservation for manual review.
 
-The API token is never accepted as a command-line value. Credential precedence
-for an explicit `create --github` execution is:
+After remote creation, origin-add or push failure preserves both the local and
+remote repositories and returns a distinct manual-recovery result. Ambiguous
+repository-creation responses are not retried automatically. Existing local or
+remote resources are never adopted, overwritten, or deleted.
 
-1. the process environment variable `GITHUB_TOKEN`;
-2. the deprecated legacy alias `gt`;
-3. a file supplied explicitly with `--env-file PATH`.
+## Development and verification
 
-An explicit file must be ignored by version control, a regular non-link file,
-UTF-8, bounded in size, and contain exactly one recognized token definition.
-Other records are not imported, interpolation is disabled, and `os.environ` is
-not modified. The file path and token details are never printed.
+```text
+python -m pip check
+python -m compileall -q src tools
+python -m ruff check src tests tools
+python -m mypy --strict src tests tools
+python -m pytest -q -p no:cacheprovider
+python -m build --wheel --outdir dist
+python tools/verify_wheel.py dist
+```
 
-Prefer a narrowly authorized, fine-grained token when the account and GitHub
-policy support repository creation, with only the repository Administration
-write permission required by GitHub's creation endpoint. Contents, workflows,
-secrets, issues, and collaborators are not used. If account policy requires a
-classic token, limit it to `public_repo` for public creation or `repo` for
-private creation; note that classic scopes are broader than this tool's API use.
+CI runs the same policy on Linux and Windows with Python 3.10, 3.11, 3.12, and
+3.13. Workflow permission is limited to `contents: read`; superseded runs are
+cancelled. CI does not enable live integration, execute project creation, push,
+launch IDEs, publish releases, or upload environment-bearing artifacts.
+Dependabot proposes bounded weekly pip and GitHub Actions updates.
 
-The API token is not placed in the remote URL, Git configuration, subprocess
-arguments, or Git subprocess environment. Pushing uses the user's separately
-configured Git credential manager.
+## Limitations and non-goals
 
-The approved root must already exist, be a directory, and have no ambiguous
-symlink, junction, or reparse-point components. The destination must not exist
-in any form. The absolute root is deliberately redacted from output.
+- Live GitHub/Git/IDE integration has not yet passed the Stage 7 review.
+- Release publication and branch standardization are deferred.
+- Only GitHub HTTPS remotes are supported.
+- Only VS Code and PyCharm are supported IDE choices.
+- Existing projects and repositories are never imported or adopted.
+- Automatic remote deletion and force cleanup are intentionally unavailable.
+- This project has not received an independent professional security audit.
+- Screenshots and claims based on live external execution are intentionally
+  omitted from this release candidate.
 
-The generated files are exactly:
-
-- `README.md`, containing the validated name and a minimal description placeholder;
-- `.gitignore`, containing a small Python cache and virtual-environment baseline.
-
-Both files use exclusive creation and are never overwritten. Git stages only
-these explicit names; broad staging is not used.
-
-## Safety model
-
-Project names and destination containment are validated before a plan can be
-created. Existing files, directories, links, and other destination entries fail
-closed. Read-only filesystem, Git, and—when selected—GitHub availability
-preflight run before mutation; the default confirmation response is no.
-
-The operation journals completed steps in memory. On failure it removes only
-paths whose identities prove they were created by that invocation. Cleanup is
-non-recursive. If unexpected content, a replaced path, a symlink/reparse point,
-or Git metadata makes cleanup ambiguous, the directory is preserved and manual
-review is required. The approved project root is never removed.
-
-Before GitHub creation, failures follow the existing bounded local rollback
-rules. After GitHub creation, no automatic remote deletion is attempted. An
-origin-add or push failure preserves both states and reports manual recovery.
-Repeated execution fails closed instead of adopting either existing resource.
-
-The core is cross-platform and requires a compatible `git` executable and
-native path semantics. IDE discovery is intentionally limited to `PATH`; it
-does not inspect registries, user profiles, JetBrains Toolbox directories, or
-machine-specific installation paths.
-
-## Continuous integration
-
-CI runs on pull requests and pushes to `master`, `main`, and the modernization
-development branch. Its matrix covers Linux and Windows with Python 3.10, 3.11,
-3.12, and 3.13. Each isolated job installs the bounded development extra, runs
-dependency checking, compileall, Ruff, strict mypy, and the complete pytest
-suite, then builds and inspects the wheel metadata and contents.
-
-Workflow permissions are limited to `contents: read`, and superseded runs on
-the same workflow/ref are cancelled. CI does not load environment files, enable
-live GitHub integration, create repositories or projects, push branches, launch
-IDEs, execute legacy scripts, or upload environment-bearing logs or artifacts.
-Dependabot proposes bounded weekly updates for pip and GitHub Actions.
-
-Live integration testing and release publication remain deferred. Stage 6 will
-complete release documentation and decide the reviewed removal or archival of
-legacy files.
-
-See [the behavior specification](docs/behavior-specification.md) for ordering,
-failure reporting, confirmation, and future rollback boundaries.
-
-## Legacy files
-
-`script.py`, `requirements.txt`, and `batch/create.bat` are retained temporarily
-for historical comparison. They are not part of the new package or CLI and
-should not be used as the safe Stage 5 workflow.
-
-## Attribution
-
-This repository continues Tim Eichinger's Windows implementation, which was
-inspired by Kalle Hallden's original project-automation concept. David Mevorah's
-version is a substantial modernization and security-focused continuation; it
-does not claim independent authorship of the inherited concept or implementation.
-
-See [ATTRIBUTION.md](ATTRIBUTION.md) for the full modification notice.
-
-## License
-
-ProjectCreationAutomation is free software distributed under the GNU General
-Public License, version 3 or later. See [LICENSE](LICENSE).
+The historical batch/Python runtime was retired from the current tree and
+remains available in Git history. See
+[the migration notes](docs/migration-from-legacy.md) and
+[CHANGELOG.md](CHANGELOG.md).

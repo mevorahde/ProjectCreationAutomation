@@ -53,7 +53,7 @@ def test_package_import_has_no_external_side_effects(
     importlib.import_module("project_creation_automation.cli")
     importlib.import_module("tools.verify_wheel")
 
-    assert imported.__version__ == "0.5.0.dev0"
+    assert imported.__version__ == "1.0.0rc1"
     assert "dotenv" not in sys.modules
     assert "requests" not in sys.modules
     assert not {

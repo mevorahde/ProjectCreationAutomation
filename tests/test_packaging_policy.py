@@ -36,14 +36,24 @@ def _json_yaml(path: Path) -> dict[str, object]:
 def test_python_license_attribution_and_entry_point_metadata() -> None:
     configuration = _configuration()
     project = configuration["project"]
+    build_system = configuration["build-system"]
     assert isinstance(project, dict)
+    assert isinstance(build_system, dict)
 
+    assert project["version"] == "1.0.0rc1"
     assert project["requires-python"] == ">=3.10,<3.14"
     assert project["license"] == "GPL-3.0-or-later"
     assert project["license-files"] == ["LICENSE", "ATTRIBUTION.md"]
     assert project["scripts"] == {
         "project-create": "project_creation_automation.cli:main"
     }
+    assert project["urls"] == {
+        "Homepage": "https://github.com/mevorahde/ProjectCreationAutomation",
+        "Repository": "https://github.com/mevorahde/ProjectCreationAutomation",
+        "Issues": "https://github.com/mevorahde/ProjectCreationAutomation/issues",
+    }
+    assert build_system["requires"] == ["setuptools>=77,<82"]
+    assert "build>=1.2,<2" in project["optional-dependencies"]["dev"]
     assert (ROOT / "LICENSE").is_file()
     assert (ROOT / "ATTRIBUTION.md").is_file()
 
@@ -141,21 +151,43 @@ def test_dependabot_updates_are_weekly_and_bounded() -> None:
 
 
 def _synthetic_wheel(path: Path, *, include_legacy: bool = False) -> None:
-    dist_info = "project_creation_automation-0.5.0.dev0.dist-info"
+    dist_info = "project_creation_automation-1.0.0rc1.dist-info"
     metadata = "\n".join(
         [
             "Metadata-Version: 2.4",
             "Name: project-creation-automation",
-            "Version: 0.5.0.dev0",
+            "Version: 1.0.0rc1",
             "License-Expression: GPL-3.0-or-later",
             "Requires-Python: >=3.10,<3.14",
+            "Project-URL: Homepage, https://github.com/mevorahde/ProjectCreationAutomation",
+            "Project-URL: Issues, https://github.com/mevorahde/ProjectCreationAutomation/issues",
+            "Project-URL: Repository, https://github.com/mevorahde/ProjectCreationAutomation",
             "",
         ]
     )
+    package_files = (
+        "__init__.py",
+        "__main__.py",
+        "adapters/__init__.py",
+        "adapters/filesystem.py",
+        "adapters/git.py",
+        "adapters/github.py",
+        "adapters/ide.py",
+        "cli.py",
+        "credentials.py",
+        "domain.py",
+        "execution.py",
+        "fakes.py",
+        "planning.py",
+        "ports.py",
+    )
     with ZipFile(path, "w") as archive:
-        archive.writestr("project_creation_automation/__init__.py", "")
+        for package_file in package_files:
+            archive.writestr(f"project_creation_automation/{package_file}", "")
         archive.writestr("project_creation_automation/py.typed", "")
         archive.writestr(f"{dist_info}/METADATA", metadata)
+        archive.writestr(f"{dist_info}/WHEEL", "Wheel-Version: 1.0\n")
+        archive.writestr(f"{dist_info}/RECORD", "")
         archive.writestr(
             f"{dist_info}/entry_points.txt",
             "[console_scripts]\n"
@@ -173,14 +205,14 @@ def _synthetic_wheel(path: Path, *, include_legacy: bool = False) -> None:
 def test_wheel_policy_accepts_metadata_and_excludes_private_runtime_artifacts(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "project_creation_automation-0.5.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "project_creation_automation-1.0.0rc1-py3-none-any.whl"
     _synthetic_wheel(wheel)
 
     verify_wheel(wheel)
 
 
 def test_wheel_policy_rejects_legacy_runtime_artifacts(tmp_path: Path) -> None:
-    wheel = tmp_path / "project_creation_automation-0.5.0.dev0-py3-none-any.whl"
+    wheel = tmp_path / "project_creation_automation-1.0.0rc1-py3-none-any.whl"
     _synthetic_wheel(wheel, include_legacy=True)
 
     with pytest.raises(ValueError, match="wheel_legacy_or_generated_artifact"):
