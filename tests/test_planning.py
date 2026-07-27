@@ -61,7 +61,7 @@ def test_github_steps_are_optional_and_ordered() -> None:
 
 def test_ide_launch_is_last_and_optional() -> None:
     without_ide = build_creation_plan(_request())
-    with_ide = build_creation_plan(_request(ide=IDEChoice.VISUAL_STUDIO_CODE))
+    with_ide = build_creation_plan(_request(ide=IDEChoice.VSCODE))
 
     assert PlanAction.LAUNCH_IDE not in [step.action for step in without_ide.steps]
     assert with_ide.steps[-1].action is PlanAction.LAUNCH_IDE

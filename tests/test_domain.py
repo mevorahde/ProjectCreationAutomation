@@ -74,6 +74,10 @@ def test_request_defaults_are_private_and_have_no_ide() -> None:
     assert request.create_github_repository is False
 
 
+def test_only_reviewed_ide_choices_are_supported() -> None:
+    assert [choice.value for choice in IDEChoice] == ["none", "pycharm", "vscode"]
+
+
 def test_request_is_immutable() -> None:
     request = ProjectRequest.create(
         project_name="safe-project",

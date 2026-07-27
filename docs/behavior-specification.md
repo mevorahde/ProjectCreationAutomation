@@ -2,10 +2,11 @@
 
 ## Status
 
-Stage 4 implements validated planning, confirmed local project creation, and
-explicit opt-in GitHub repository creation plus push. Local-only remains the
-default. IDE execution remains unavailable. Imports, help, validation, and
-planning perform no external access or mutation.
+Stage 5 implements validated planning, confirmed local project creation,
+explicit opt-in GitHub repository creation plus push, and optional post-success
+launching of Visual Studio Code or PyCharm. Local-only and no IDE remain the
+defaults. Imports, help, validation, and planning perform no external access or
+mutation.
 
 ## Request invariants
 
@@ -18,7 +19,8 @@ planning perform no external access or mutation.
   Windows path semantics. Normalization does not access the filesystem.
 - The destination must be a direct child contained by the approved project root.
 - Visibility defaults to private. Public visibility must be requested explicitly.
-- The absence of an IDE choice means that no IDE will be launched.
+- IDE choices are exactly `none`, `vscode`, and `pycharm`; `none` is the
+  default.
 - GitHub repository creation is optional and is never inferred from credentials
   or environment variables.
 
@@ -83,10 +85,19 @@ The intended sequence is:
 12. If selected, create one GitHub repository with `auto_init=false`.
 13. Verify no `origin` exists and add exactly one canonical HTTPS `origin`.
 14. Push only `main` and establish its upstream.
+15. If selected, discover the reviewed IDE launcher on `PATH` and start it with
+    the completed project directory as exactly one argument.
 
 `README.md` contains only the validated project display name and a minimal
 description placeholder. `.gitignore` contains a reviewed Python baseline.
 No environment, credential, license, package, or IDE files are generated.
+
+IDE discovery occurs only after every requested creation step succeeds. VS Code
+checks only `code`; PyCharm checks only `pycharm` and `pycharm64.exe`. Discovery
+does not scan drives, registries, profiles, Toolbox directories, configuration
+files, or machine-specific paths. The executable and project directory must be
+regular, non-link, non-reparse paths, and the executable identity is checked
+again immediately before the injected nonblocking process boundary.
 
 ## Failure and rollback boundary
 
@@ -116,3 +127,25 @@ Once GitHub reports successful creation, automatic remote deletion is forbidden.
 Failures while checking/adding `origin` or pushing preserve local and remote
 state and return manual recovery required. Existing local or remote resources
 are never replaced, renamed, removed, or adopted.
+
+IDE startup uses an argument vector, `shell=False`, an explicit project
+directory working directory, null standard streams, and a child environment
+with token/secret/password/credential-named values removed. It never waits for
+the IDE. Discovery or startup failure is a predefined post-success warning:
+the completed local or remote project remains successful and is not rolled
+back. Cancellation, local/Git/GitHub/push failure, and manual recovery never
+attempt IDE discovery or launch.
+
+## Continuous integration boundary
+
+The least-privilege workflow runs on Linux and Windows for Python 3.10 through
+3.13. It grants only read access to repository contents, cancels superseded
+runs, installs only the bounded development extra, and runs dependency,
+compilation, lint, strict typing, isolated test, wheel-build, and wheel-policy
+checks. It does not receive configured secrets, load environment files, enable
+live GitHub tests, mutate repositories, launch applications, run legacy scripts,
+or upload artifacts. Weekly Dependabot updates are bounded separately for pip
+and GitHub Actions.
+
+Live integration, release publication, final release documentation, and
+reviewed legacy cleanup remain deferred to Stage 6.

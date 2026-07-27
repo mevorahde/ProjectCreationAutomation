@@ -4,6 +4,7 @@ import io
 
 import pytest
 
+import project_creation_automation.adapters.ide as ide_module
 import project_creation_automation.cli as cli_module
 from project_creation_automation.cli import (
     EXIT_CANCELLED,
@@ -13,11 +14,12 @@ from project_creation_automation.cli import (
     build_parser,
     run,
 )
-from project_creation_automation.domain import Visibility
+from project_creation_automation.domain import IDEChoice, IDELaunchStatus, Visibility
 from project_creation_automation.execution import LocalCreationOrchestrator
 from project_creation_automation.fakes import (
     FakeConfirmation,
     FakeCredentialProvider,
+    FakeIDELauncher,
     FakeLocalFilesystem,
     FakeLocalGit,
     FakeOperationalReporter,
@@ -91,12 +93,14 @@ def _orchestrator(
     answer: bool,
     git: FakeLocalGit | None = None,
     filesystem: FakeLocalFilesystem | None = None,
+    ide_launcher: FakeIDELauncher | None = None,
 ) -> LocalCreationOrchestrator:
     return LocalCreationOrchestrator(
         filesystem or FakeLocalFilesystem(),
         git or FakeLocalGit(),
         FakeConfirmation(answer=answer),
         FakeOperationalReporter(),
+        ide_launcher=ide_launcher,
     )
 
 
@@ -124,7 +128,7 @@ def test_create_cancellation_returns_nonzero_without_mutation() -> None:
     assert "PROJECT CREATION PLAN (DRY RUN)" in output.getvalue()
     assert "result: cancelled-no-changes" in output.getvalue()
     assert "github: not-performed" in output.getvalue()
-    assert "ide: not-performed" in output.getvalue()
+    assert "ide: not-requested" in output.getvalue()
     assert errors.getvalue() == ""
     assert filesystem.calls == ["preflight"]
 
@@ -256,6 +260,126 @@ def test_cli_exposes_no_token_argument() -> None:
 
     assert "--token" not in help_text
     assert "--password" not in help_text
+
+
+@pytest.mark.parametrize("ide", [IDEChoice.VSCODE, IDEChoice.PYCHARM])
+def test_plan_renders_only_supported_ide_choices_without_composing_adapters(
+    ide: IDEChoice,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "_compose_orchestrator",
+        lambda **kwargs: pytest.fail("execution adapters were composed"),
+    )
+    output = io.StringIO()
+
+    exit_code = run(
+        [
+            "plan",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--ide",
+            ide.value,
+        ],
+        stdout=output,
+        stderr=io.StringIO(),
+    )
+
+    assert exit_code == 0
+    assert f"ide: {ide.value}" in output.getvalue()
+    assert "launch_ide" in output.getvalue()
+
+
+def test_unknown_ide_is_rejected_during_parsing() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as captured:
+        parser.parse_args(
+            [
+                "plan",
+                "safe-project",
+                "--root",
+                "/approved/projects",
+                "--ide",
+                "arbitrary-editor --unsafe",
+            ]
+        )
+
+    assert captured.value.code == 2
+
+
+@pytest.mark.parametrize(
+    ("launcher_status", "expected_output"),
+    [
+        (IDELaunchStatus.LAUNCHED, "ide: launched"),
+        (
+            IDELaunchStatus.UNAVAILABLE,
+            "ide: launcher-unavailable-warning",
+        ),
+        (IDELaunchStatus.FAILED, "ide: launch-failed-warning"),
+    ],
+)
+def test_ide_result_is_reported_safely_without_changing_success_exit(
+    launcher_status: IDELaunchStatus,
+    expected_output: str,
+) -> None:
+    output = io.StringIO()
+    launcher = FakeIDELauncher(status=launcher_status)
+
+    exit_code = run(
+        [
+            "create",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--ide",
+            "vscode",
+            "--confirm",
+        ],
+        stdout=output,
+        stderr=io.StringIO(),
+        orchestrator=_orchestrator(answer=True, ide_launcher=launcher),
+    )
+
+    assert exit_code == 0
+    assert expected_output in output.getvalue()
+    assert launcher.calls == ["launch:vscode"]
+
+
+def test_default_composition_injects_ide_adapter_only_for_create_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    filesystem = FakeLocalFilesystem()
+    git = FakeLocalGit()
+    launcher = FakeIDELauncher()
+    monkeypatch.setattr(cli_module, "BoundedFilesystemAdapter", lambda: filesystem)
+    monkeypatch.setattr(cli_module, "GitProcessAdapter", lambda: git)
+    monkeypatch.setattr(ide_module, "SafeIDEAdapter", lambda: launcher)
+
+    exit_code = run(
+        [
+            "create",
+            "safe-project",
+            "--root",
+            "/approved/projects",
+            "--path-flavor",
+            "posix",
+            "--ide",
+            "pycharm",
+            "--confirm",
+        ],
+        stdout=io.StringIO(),
+        stderr=io.StringIO(),
+    )
+
+    assert exit_code == 0
+    assert launcher.calls == ["launch:pycharm"]
 
 
 def _remote_orchestrator(

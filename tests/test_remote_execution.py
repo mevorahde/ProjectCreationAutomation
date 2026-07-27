@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from project_creation_automation.domain import PathFlavor, ProjectRequest, Visibility
+from project_creation_automation.domain import (
+    IDEChoice,
+    IDELaunchStatus,
+    PathFlavor,
+    ProjectRequest,
+    Visibility,
+)
 from project_creation_automation.execution import (
     ExecutionStatus,
     LocalCreationOrchestrator,
@@ -11,6 +17,7 @@ from project_creation_automation.execution import (
 from project_creation_automation.fakes import (
     FakeConfirmation,
     FakeCredentialProvider,
+    FakeIDELauncher,
     FakeLocalFilesystem,
     FakeLocalGit,
     FakeOperationalReporter,
@@ -19,12 +26,16 @@ from project_creation_automation.fakes import (
 from project_creation_automation.planning import build_creation_plan
 
 
-def _request(visibility: Visibility = Visibility.PRIVATE) -> ProjectRequest:
+def _request(
+    visibility: Visibility = Visibility.PRIVATE,
+    ide: IDEChoice = IDEChoice.NONE,
+) -> ProjectRequest:
     return ProjectRequest.create(
         project_name="safe-project",
         project_root="/approved/projects",
         create_github_repository=True,
         visibility=visibility,
+        ide=ide,
         path_flavor=PathFlavor.POSIX,
     )
 
@@ -36,6 +47,7 @@ def _orchestrator(
     credential: FakeCredentialProvider | None = None,
     github: FakeSecureGitHub | None = None,
     answer: bool = True,
+    ide_launcher: FakeIDELauncher | None = None,
 ) -> tuple[
     LocalCreationOrchestrator,
     FakeLocalFilesystem,
@@ -55,6 +67,7 @@ def _orchestrator(
             FakeOperationalReporter(),
             credential_provider,
             github_adapter,
+            ide_launcher,
         ),
         fs,
         git_adapter,
@@ -214,6 +227,55 @@ def test_cancelled_remote_flow_has_no_mutation() -> None:
     assert filesystem.calls == ["preflight"]
     assert git.calls == ["verify_available"]
     assert github.calls == ["resolve_account", "repository_exists"]
+
+
+def test_remote_ide_launch_occurs_only_after_successful_push() -> None:
+    launcher = FakeIDELauncher()
+    orchestrator, _, git, _, _ = _orchestrator(ide_launcher=launcher)
+    request = _request(ide=IDEChoice.VSCODE)
+
+    result = orchestrator.execute(request, build_creation_plan(request))
+
+    assert result.status is ExecutionStatus.SUCCEEDED
+    assert result.ide_launch_status is IDELaunchStatus.LAUNCHED
+    assert git.calls[-1] == "push_main"
+    assert result.completed_steps[-2:] == (
+        OperationStep.MAIN_PUSHED,
+        OperationStep.IDE_LAUNCHED,
+    )
+    assert launcher.calls == ["launch:vscode"]
+
+
+@pytest.mark.parametrize(
+    ("github", "git"),
+    [
+        (
+            FakeSecureGitHub(
+                fail_at="create_repository",
+                uncertain_failure=True,
+            ),
+            FakeLocalGit(),
+        ),
+        (FakeSecureGitHub(), FakeLocalGit(fail_at="push_main")),
+    ],
+)
+def test_remote_manual_recovery_never_launches_ide(
+    github: FakeSecureGitHub,
+    git: FakeLocalGit,
+) -> None:
+    launcher = FakeIDELauncher()
+    orchestrator, _, _, _, _ = _orchestrator(
+        github=github,
+        git=git,
+        ide_launcher=launcher,
+    )
+    request = _request(ide=IDEChoice.PYCHARM)
+
+    result = orchestrator.execute(request, build_creation_plan(request))
+
+    assert result.status is ExecutionStatus.MANUAL_CLEANUP_REQUIRED
+    assert result.ide_launch_status is IDELaunchStatus.NOT_PERFORMED
+    assert launcher.calls == []
 
 
 def test_explicit_env_file_reference_is_forwarded_without_journaling_path() -> None:

@@ -1,4 +1,4 @@
-"""Import-safe local and opt-in GitHub command-line interface."""
+"""Import-safe local, opt-in GitHub, and optional IDE command-line interface."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from project_creation_automation.adapters.git import GitProcessAdapter
 from project_creation_automation.domain import (
     DomainError,
     IDEChoice,
+    IDELaunchStatus,
     PathFlavor,
     ProjectRequest,
     Visibility,
@@ -51,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="create one confirmed local project and Git repository",
         description=(
             "Create a local project after fail-closed preflight and confirmation. "
-            "GitHub is optional; IDE execution remains unavailable."
+            "GitHub and a post-success IDE launch are optional."
         ),
     )
     _add_request_arguments(create_parser)
@@ -115,7 +116,7 @@ def run(
             output.write("github: state-uncertain-manual-recovery-required\n")
         else:
             output.write("github: not-performed\n")
-        output.write("ide: not-performed\n")
+        output.write(f"ide: {_render_ide_status(result.ide_launch_status)}\n")
         if result.status is ExecutionStatus.SUCCEEDED:
             output.write(
                 "result: github-project-created-and-main-pushed\n"
@@ -179,7 +180,7 @@ def _add_request_arguments(parser: argparse.ArgumentParser) -> None:
         "--ide",
         choices=[choice.value for choice in IDEChoice],
         default=IDEChoice.NONE.value,
-        help="optional future post-success IDE launch",
+        help="optional post-success IDE launch; selected launcher must be on PATH",
     )
     parser.add_argument(
         "--github",
@@ -212,6 +213,7 @@ def _compose_orchestrator(
 
     credential_provider = None
     github = None
+    ide_launcher = None
     if request.create_github_repository:
         from project_creation_automation.adapters.github import (
             GitHubApiAdapter,
@@ -221,6 +223,10 @@ def _compose_orchestrator(
 
         credential_provider = EnvironmentCredentialProvider()
         github = GitHubApiAdapter(transport=GitHubHttpsTransport())
+    if request.ide is not IDEChoice.NONE:
+        from project_creation_automation.adapters.ide import SafeIDEAdapter
+
+        ide_launcher = SafeIDEAdapter()
     return LocalCreationOrchestrator(
         filesystem=BoundedFilesystemAdapter(),
         git=GitProcessAdapter(),
@@ -232,4 +238,15 @@ def _compose_orchestrator(
         reporter=StreamOperationalReporter(output),
         credential_provider=credential_provider,
         github=github,
+        ide_launcher=ide_launcher,
     )
+
+
+def _render_ide_status(status: IDELaunchStatus) -> str:
+    return {
+        IDELaunchStatus.NOT_REQUESTED: "not-requested",
+        IDELaunchStatus.NOT_PERFORMED: "not-performed",
+        IDELaunchStatus.LAUNCHED: "launched",
+        IDELaunchStatus.UNAVAILABLE: "launcher-unavailable-warning",
+        IDELaunchStatus.FAILED: "launch-failed-warning",
+    }[status]

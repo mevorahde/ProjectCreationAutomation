@@ -10,6 +10,7 @@ from project_creation_automation.domain import (
     GitHubAccount,
     GitHubRepository,
     IDEChoice,
+    IDELaunchStatus,
     ProjectLocation,
     Visibility,
 )
@@ -49,7 +50,7 @@ class GitHubPort(Protocol):
 class IDELauncherPort(Protocol):
     """Optional post-success IDE launch."""
 
-    def launch(self, location: ProjectLocation, ide: IDEChoice) -> None: ...
+    def launch(self, project_directory: Path, ide: IDEChoice) -> IDELaunchStatus: ...
 
 
 class ConfirmationPort(Protocol):

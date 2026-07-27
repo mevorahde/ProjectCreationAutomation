@@ -16,6 +16,7 @@ from project_creation_automation.domain import (
     GitIdentityError,
     GitOperationError,
     IDEChoice,
+    IDELaunchStatus,
     ProjectLocation,
     Visibility,
 )
@@ -74,9 +75,15 @@ class FakeGitHub:
 @dataclass(slots=True)
 class FakeIDELauncher:
     calls: list[str] = field(default_factory=list)
+    status: IDELaunchStatus = IDELaunchStatus.LAUNCHED
+    raises: bool = False
 
-    def launch(self, location: ProjectLocation, ide: IDEChoice) -> None:
+    def launch(self, project_directory: Path, ide: IDEChoice) -> IDELaunchStatus:
+        del project_directory
         self.calls.append(f"launch:{ide.value}")
+        if self.raises:
+            raise OSError
+        return self.status
 
 
 @dataclass(slots=True)

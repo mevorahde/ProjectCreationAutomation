@@ -4,7 +4,7 @@ ProjectCreationAutomation is a safety-first, cross-platform Python tool for
 planning and creating bounded local Git projects, with explicit opt-in GitHub
 repository creation and push.
 
-## Stage 4 status
+## Stage 5 status
 
 The `project-create` CLI validates every request and prints a deterministic,
 redacted plan before execution. It can create one local project directory,
@@ -16,7 +16,10 @@ credential-free HTTPS `origin`, and push only `main`.
 Local-only operation remains the default. It does not load credentials, contact
 GitHub, configure remotes, or push unless `create --github` is explicitly used.
 It never loads an environment file during import, help, validation, or planning.
-IDE launch remains unavailable, and the retained legacy scripts are never used.
+An optional post-success IDE launch supports only Visual Studio Code and
+PyCharm. The default is `none`; planning, cancellation, and failed or
+manual-recovery creation never discover or launch an IDE. The retained legacy
+scripts are never used.
 
 Git author identity must already be available to Git. The application does not
 change repository, global, or system identity settings.
@@ -76,6 +79,26 @@ project-create create example-project --root /absolute/approved/root --github --
 `--private` may restate the safe default. `--private` and `--public` are
 mutually exclusive, and `--public` without `--github` is rejected.
 
+## Optional IDE launch
+
+The selected launcher must already be available on `PATH`. Arbitrary executable
+paths and flags are not accepted.
+
+```text
+project-create create example-project --root /absolute/approved/root --ide vscode
+project-create create example-project --root /absolute/approved/root --ide pycharm
+```
+
+VS Code discovery checks only `code`. PyCharm discovery checks only `pycharm`
+and `pycharm64.exe`. The resolved executable and completed project directory
+must be regular, unambiguous paths. Launch uses an argument list, no shell, and
+passes the project directory as exactly one argument.
+
+IDE launch occurs only after local creation—and, when requested, GitHub creation
+and push—has succeeded. Launcher absence or process-start failure is reported as
+a warning while the completed project remains successful and is never rolled
+back.
+
 ## GitHub credentials
 
 The API token is never accepted as a command-line value. Credential precedence
@@ -132,7 +155,27 @@ origin-add or push failure preserves both states and reports manual recovery.
 Repeated execution fails closed instead of adopting either existing resource.
 
 The core is cross-platform and requires a compatible `git` executable and
-native path semantics. IDE integration remains unimplemented.
+native path semantics. IDE discovery is intentionally limited to `PATH`; it
+does not inspect registries, user profiles, JetBrains Toolbox directories, or
+machine-specific installation paths.
+
+## Continuous integration
+
+CI runs on pull requests and pushes to `master`, `main`, and the modernization
+development branch. Its matrix covers Linux and Windows with Python 3.10, 3.11,
+3.12, and 3.13. Each isolated job installs the bounded development extra, runs
+dependency checking, compileall, Ruff, strict mypy, and the complete pytest
+suite, then builds and inspects the wheel metadata and contents.
+
+Workflow permissions are limited to `contents: read`, and superseded runs on
+the same workflow/ref are cancelled. CI does not load environment files, enable
+live GitHub integration, create repositories or projects, push branches, launch
+IDEs, execute legacy scripts, or upload environment-bearing logs or artifacts.
+Dependabot proposes bounded weekly updates for pip and GitHub Actions.
+
+Live integration testing and release publication remain deferred. Stage 6 will
+complete release documentation and decide the reviewed removal or archival of
+legacy files.
 
 See [the behavior specification](docs/behavior-specification.md) for ordering,
 failure reporting, confirmation, and future rollback boundaries.
@@ -141,7 +184,7 @@ failure reporting, confirmation, and future rollback boundaries.
 
 `script.py`, `requirements.txt`, and `batch/create.bat` are retained temporarily
 for historical comparison. They are not part of the new package or CLI and
-should not be used as the safe Stage 4 workflow.
+should not be used as the safe Stage 5 workflow.
 
 ## Attribution
 

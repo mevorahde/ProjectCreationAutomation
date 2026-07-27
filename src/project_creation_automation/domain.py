@@ -28,13 +28,21 @@ class Visibility(str, Enum):
 
 
 class IDEChoice(str, Enum):
-    """Optional IDE selection for a future post-success adapter."""
+    """Narrowly supported optional post-success IDE selections."""
 
     NONE = "none"
     PYCHARM = "pycharm"
-    VISUAL_STUDIO = "visual-studio"
-    SUBLIME_TEXT = "sublime-text"
-    VISUAL_STUDIO_CODE = "visual-studio-code"
+    VSCODE = "vscode"
+
+
+class IDELaunchStatus(str, Enum):
+    """Predefined, redacted outcomes for optional IDE launching."""
+
+    NOT_REQUESTED = "not_requested"
+    NOT_PERFORMED = "not_performed"
+    LAUNCHED = "launched"
+    UNAVAILABLE = "launcher_unavailable"
+    FAILED = "launch_failed"
 
 
 class PathFlavor(str, Enum):

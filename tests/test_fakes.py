@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from project_creation_automation.domain import IDEChoice, PathFlavor, ProjectRequest, Visibility
 from project_creation_automation.fakes import (
     FakeConfirmation,
@@ -37,7 +39,7 @@ def test_fakes_are_deterministic_and_in_memory() -> None:
     remote = github.create_repository(request.project_name, Visibility.PRIVATE)
     git.add_remote(request.location, remote)
     git.push(request.location)
-    ide.launch(request.location, IDEChoice.VISUAL_STUDIO_CODE)
+    ide.launch(Path("/approved/projects/safe-project"), IDEChoice.VSCODE)
     assert confirmation.confirm(build_creation_plan(request)) is True
     reporter.report("completed")
 
@@ -48,6 +50,6 @@ def test_fakes_are_deterministic_and_in_memory() -> None:
     ]
     assert git.calls == ["initialize", "create_initial_commit", "add_remote", "push"]
     assert github.calls == ["create_repository"]
-    assert ide.calls == ["launch:visual-studio-code"]
+    assert ide.calls == ["launch:vscode"]
     assert confirmation.calls == 1
     assert reporter.events == ["completed"]

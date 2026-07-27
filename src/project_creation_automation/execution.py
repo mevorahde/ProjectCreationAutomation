@@ -1,4 +1,4 @@
-"""Confirmed local and opt-in GitHub creation orchestration."""
+"""Confirmed creation with opt-in GitHub and post-success IDE integration."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from project_creation_automation.domain import (
     GitHubCreationUncertainError,
     GitHubOperationError,
     IDEChoice,
+    IDELaunchStatus,
     ProjectRequest,
     UnsupportedExecutionError,
 )
@@ -24,6 +25,7 @@ from project_creation_automation.planning import CreationPlan, build_creation_pl
 from project_creation_automation.ports import (
     ConfirmationPort,
     CredentialProviderPort,
+    IDELauncherPort,
     LocalFilesystemPort,
     LocalGitPort,
     OperationalReporterPort,
@@ -51,6 +53,9 @@ class OperationStep(str, Enum):
     GITHUB_REPOSITORY_CREATED = "github_repository_created"
     ORIGIN_ADDED = "origin_added"
     MAIN_PUSHED = "main_pushed"
+    IDE_LAUNCHED = "ide_launched"
+    IDE_LAUNCHER_UNAVAILABLE = "ide_launcher_unavailable"
+    IDE_LAUNCH_FAILED = "ide_launch_failed"
 
 
 class OperationEvent(str, Enum):
@@ -69,6 +74,9 @@ class OperationEvent(str, Enum):
     GITHUB_REPOSITORY_CREATED = "github_repository_created"
     ORIGIN_ADDED = "origin_added"
     MAIN_PUSHED = "main_pushed"
+    IDE_LAUNCHED = "ide_launched"
+    IDE_LAUNCHER_UNAVAILABLE = "ide_launcher_unavailable"
+    IDE_LAUNCH_FAILED = "ide_launch_failed"
     OPERATION_SUCCEEDED = "operation_succeeded"
     OPERATION_FAILED = "operation_failed"
     ROLLBACK_COMPLETED = "rollback_completed"
@@ -103,6 +111,7 @@ class ExecutionResult:
     error_code: str | None = None
     remote_repository_created: bool = False
     remote_state_requires_recovery: bool = False
+    ide_launch_status: IDELaunchStatus = IDELaunchStatus.NOT_REQUESTED
 
 
 @dataclass(slots=True)
@@ -115,6 +124,7 @@ class LocalCreationOrchestrator:
     reporter: OperationalReporterPort
     credential_provider: CredentialProviderPort | None = None
     github: SecureGitHubPort | None = None
+    ide_launcher: IDELauncherPort | None = None
 
     def execute(
         self,
@@ -131,7 +141,6 @@ class LocalCreationOrchestrator:
         try:
             if plan != build_creation_plan(request):
                 raise UnsupportedExecutionError("creation_plan_mismatch")
-            self._reject_unavailable_actions(request)
             root = Path(str(request.location.root))
             destination = Path(str(request.location.destination))
 
@@ -152,7 +161,11 @@ class LocalCreationOrchestrator:
 
             if not self.confirmation.confirm(plan):
                 self.reporter.report(OperationEvent.OPERATION_CANCELLED.value)
-                return self._result(ExecutionStatus.CANCELLED, journal)
+                return self._result(
+                    ExecutionStatus.CANCELLED,
+                    journal,
+                    ide_launch_status=self._unattempted_ide_status(request),
+                )
             journal.complete(OperationStep.CONFIRMATION)
             self.reporter.report(OperationEvent.CONFIRMATION_ACCEPTED.value)
 
@@ -207,12 +220,6 @@ class LocalCreationOrchestrator:
                 self.git.push_main(destination)
                 journal.complete(OperationStep.MAIN_PUSHED)
                 self.reporter.report(OperationEvent.MAIN_PUSHED.value)
-            self.reporter.report(OperationEvent.OPERATION_SUCCEEDED.value)
-            return self._result(
-                ExecutionStatus.SUCCEEDED,
-                journal,
-                remote_repository_created=remote_created,
-            )
         except FilesystemMutationError as error:
             created = error.created
             return self._failed(request, journal, created, error, remote_created)
@@ -230,11 +237,46 @@ class LocalCreationOrchestrator:
         finally:
             if token is not None:
                 token.clear()
+        return self._complete_success(
+            request,
+            journal,
+            destination,
+            remote_created,
+        )
 
-    @staticmethod
-    def _reject_unavailable_actions(request: ProjectRequest) -> None:
+    def _complete_success(
+        self,
+        request: ProjectRequest,
+        journal: OperationJournal,
+        destination: Path,
+        remote_created: bool,
+    ) -> ExecutionResult:
+        ide_status = IDELaunchStatus.NOT_REQUESTED
         if request.ide is not IDEChoice.NONE:
-            raise UnsupportedExecutionError("ide_execution_unavailable")
+            if self.ide_launcher is None:
+                ide_status = IDELaunchStatus.UNAVAILABLE
+            else:
+                try:
+                    ide_status = self.ide_launcher.launch(destination, request.ide)
+                except Exception:
+                    ide_status = IDELaunchStatus.FAILED
+            if ide_status is IDELaunchStatus.LAUNCHED:
+                journal.complete(OperationStep.IDE_LAUNCHED)
+                self.reporter.report(OperationEvent.IDE_LAUNCHED.value)
+            elif ide_status is IDELaunchStatus.UNAVAILABLE:
+                journal.complete(OperationStep.IDE_LAUNCHER_UNAVAILABLE)
+                self.reporter.report(OperationEvent.IDE_LAUNCHER_UNAVAILABLE.value)
+            else:
+                ide_status = IDELaunchStatus.FAILED
+                journal.complete(OperationStep.IDE_LAUNCH_FAILED)
+                self.reporter.report(OperationEvent.IDE_LAUNCH_FAILED.value)
+        self.reporter.report(OperationEvent.OPERATION_SUCCEEDED.value)
+        return self._result(
+            ExecutionStatus.SUCCEEDED,
+            journal,
+            remote_repository_created=remote_created,
+            ide_launch_status=ide_status,
+        )
 
     def _failed(
         self,
@@ -254,18 +296,38 @@ class LocalCreationOrchestrator:
                 error.code,
                 remote_repository_created=remote_created,
                 remote_state_requires_recovery=True,
+                ide_launch_status=self._unattempted_ide_status(request),
             )
         if created is None:
-            return self._result(ExecutionStatus.FAILED, journal, error.code)
+            return self._result(
+                ExecutionStatus.FAILED,
+                journal,
+                error.code,
+                ide_launch_status=self._unattempted_ide_status(request),
+            )
         rollback = self.filesystem.rollback(request.location, created)
         if rollback == RollbackStatus.COMPLETED:
             self.reporter.report(OperationEvent.ROLLBACK_COMPLETED.value)
-            return self._result(ExecutionStatus.FAILED, journal, error.code)
+            return self._result(
+                ExecutionStatus.FAILED,
+                journal,
+                error.code,
+                ide_launch_status=self._unattempted_ide_status(request),
+            )
         self.reporter.report(OperationEvent.MANUAL_CLEANUP_REQUIRED.value)
         return self._result(
             ExecutionStatus.MANUAL_CLEANUP_REQUIRED,
             journal,
             error.code,
+            ide_launch_status=self._unattempted_ide_status(request),
+        )
+
+    @staticmethod
+    def _unattempted_ide_status(request: ProjectRequest) -> IDELaunchStatus:
+        return (
+            IDELaunchStatus.NOT_PERFORMED
+            if request.ide is not IDEChoice.NONE
+            else IDELaunchStatus.NOT_REQUESTED
         )
 
     @staticmethod
@@ -275,6 +337,7 @@ class LocalCreationOrchestrator:
         error_code: str | None = None,
         remote_repository_created: bool = False,
         remote_state_requires_recovery: bool = False,
+        ide_launch_status: IDELaunchStatus = IDELaunchStatus.NOT_REQUESTED,
     ) -> ExecutionResult:
         return ExecutionResult(
             status=status,
@@ -282,6 +345,7 @@ class LocalCreationOrchestrator:
             error_code=error_code,
             remote_repository_created=remote_repository_created,
             remote_state_requires_recovery=remote_state_requires_recovery,
+            ide_launch_status=ide_launch_status,
         )
 
 
