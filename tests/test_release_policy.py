@@ -12,7 +12,7 @@ import pytest
 if sys.version_info >= (3, 11):
     import tomllib
 else:
-    import tomli as tomllib  # type: ignore[import-not-found]
+    import tomli as tomllib  # type: ignore[import-not-found, unused-ignore]
 
 from project_creation_automation import __version__
 from project_creation_automation.cli import build_parser
