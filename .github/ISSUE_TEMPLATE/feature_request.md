@@ -1,20 +1,21 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: "[BUG]"
-labels: ''
-assignees: ''
-
+about: Propose a bounded improvement
+title: "[Feature] "
+labels: enhancement
+assignees: ""
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Problem
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+Describe the user need without including private paths, account details, or
+credentials.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Proposed behavior
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Explain the desired behavior, including confirmation, rollback, and
+least-privilege expectations.
+
+## Alternatives and scope
+
+Describe alternatives considered and any explicit non-goals.

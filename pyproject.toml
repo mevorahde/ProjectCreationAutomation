@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=77,<82"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-creation-automation"
+version = "1.0.0"
+description = "Safety-first local, GitHub, and optional IDE project creation"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "ATTRIBUTION.md"]
+authors = [
+  { name = "Tim Eichinger" },
+  { name = "David Mevorah" },
+]
+keywords = ["automation", "git", "github", "project-management"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+dependencies = [
+  "truststore>=0.10.4,<0.11",
+]
+
+[project.urls]
+Homepage = "https://github.com/mevorahde/ProjectCreationAutomation"
+Repository = "https://github.com/mevorahde/ProjectCreationAutomation"
+Issues = "https://github.com/mevorahde/ProjectCreationAutomation/issues"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.15,<2",
+  "pytest>=8.3,<10",
+  "ruff>=0.11,<1",
+  "tomli>=2,<3; python_version < '3.11'",
+]
+
+[project.scripts]
+project-create = "project_creation_automation.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+project_creation_automation = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src", "tests"]

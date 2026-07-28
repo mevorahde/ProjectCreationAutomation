@@ -1,38 +1,30 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: "[BUG]"
-labels: ''
-assignees: ''
-
+about: Report reproducible incorrect or unsafe behavior
+title: "[Bug] "
+labels: bug
+assignees: ""
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Summary
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+Describe what happened and what you expected.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Reproduction
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+Provide a minimal command using synthetic names and paths. Redact tokens,
+environment-file paths, usernames, repository names, and machine-specific data.
+Do not run live GitHub creation solely to prepare a report.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## Environment
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+- Operating system:
+- Python version:
+- Package version:
+- Installation method:
 
-**Additional context**
-Add any other context about the problem here.
+## Safety impact
+
+State whether any local directory, Git repository, GitHub repository, remote,
+or IDE launch was attempted or changed. For undisclosed security issues, use
+the private process described in `SECURITY.md` instead of a public issue.
