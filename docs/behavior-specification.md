@@ -2,11 +2,11 @@
 
 ## Status
 
-Stage 6 release candidate `1.0.0rc1` implements validated planning, confirmed local project creation,
-explicit opt-in GitHub repository creation plus push, and optional post-success
-launching of Visual Studio Code or PyCharm. Local-only and no IDE remain the
-defaults. Imports, help, validation, and planning perform no external access or
-mutation.
+Version `1.0.0` implements validated planning, confirmed local project
+creation, explicit opt-in GitHub repository creation plus push, and optional
+post-success launching of Visual Studio Code or PyCharm. Local-only and no IDE
+remain the defaults. Imports, help, validation, and planning perform no
+external access or mutation.
 
 ## Request invariants
 
@@ -151,7 +151,10 @@ live GitHub tests, mutate repositories, launch applications, run legacy scripts,
 or upload artifacts. Weekly Dependabot updates are bounded separately for pip
 and GitHub Actions.
 
-Live integration, pull-request review, branch standardization, and release
-publication remain deferred to Stage 7. The historical runtime files are
-retired from the current tree but preserved in Git history and migration
-documentation.
+Stage 7 live-tested local project creation and private GitHub repository
+creation, `main` push, remote verification, and explicit cleanup through the
+production adapters. It selected `--ide none`; IDE discovery and launch remain
+verified through isolated boundaries rather than this live release test.
+Pull-request review, branch standardization, and release publication remain
+deferred. The historical runtime files are retired from the current tree but
+preserved in Git history and migration documentation.

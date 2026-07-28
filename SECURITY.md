@@ -2,10 +2,10 @@
 
 ## Supported versions
 
-Security fixes currently target the `1.0.0rc1` release-candidate line on the
-active modernization branch. Earlier development stages and the retired legacy
-scripts are unsupported. A final `1.0.0` release is intentionally deferred
-until live integration has been reviewed.
+Security fixes currently target the `1.0.0` release line on the active
+modernization branch. Earlier development stages and the retired legacy
+scripts are unsupported. The final version has completed reviewed live local
+and private GitHub integration testing. Release publication remains deferred.
 
 ## Reporting
 

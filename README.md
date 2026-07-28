@@ -6,9 +6,11 @@ creation/push and optional post-success IDE launch. It emphasizes reviewable
 plans, conservative failure handling, narrow external boundaries, and
 credential-safe diagnostics.
 
-`1.0.0rc1` is a release candidate. The local, packaging, and isolated adapter
-boundaries are extensively tested; live GitHub/Git/IDE integration and release
-publication remain deferred.
+`1.0.0` finalizes the reviewed release candidate. Local project creation was
+live-tested. Private GitHub repository creation, push, verification, and cleanup
+were live-tested with the system-trust transport and local ignored credential
+source. IDE launching remains verified through isolated test boundaries and was
+not exercised by the live release test. Release publication remains deferred.
 
 ## Provenance and license
 
@@ -79,7 +81,7 @@ python -m pip install -e ".[dev]"
 From a reviewed local wheel:
 
 ```text
-python -m pip install project_creation_automation-1.0.0rc1-py3-none-any.whl
+python -m pip install project_creation_automation-1.0.0-py3-none-any.whl
 ```
 
 Verify the console entry point:
@@ -220,7 +222,10 @@ Dependabot proposes bounded weekly pip and GitHub Actions updates.
 
 ## Limitations and non-goals
 
-- Live GitHub/Git/IDE integration has not yet passed the Stage 7 review.
+- Stage 7 live-tested local creation and private GitHub creation, push,
+  verification, and cleanup; it deliberately selected `--ide none`.
+- IDE discovery and launching are verified through isolated adapter/process
+  boundaries, not through the Stage 7 live release test.
 - Release publication and branch standardization are deferred.
 - Only GitHub HTTPS remotes are supported.
 - Only VS Code and PyCharm are supported IDE choices.
@@ -228,8 +233,8 @@ Dependabot proposes bounded weekly pip and GitHub Actions updates.
 - The operating system certificate store must trust the GitHub API connection.
 - Automatic remote deletion and force cleanup are intentionally unavailable.
 - This project has not received an independent professional security audit.
-- Screenshots and claims based on live external execution are intentionally
-  omitted from this release candidate.
+- Screenshots and claims beyond reviewed automated and Stage 7 live evidence
+  are intentionally omitted.
 
 The historical batch/Python runtime was retired from the current tree and
 remains available in Git history. See

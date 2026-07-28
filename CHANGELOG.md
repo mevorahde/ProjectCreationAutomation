@@ -5,10 +5,22 @@ intent, while release publication remains deferred.
 
 ## Unreleased
 
-- Added request-scoped native system certificate trust for GitHub HTTPS and a
-  dedicated redacted TLS-verification failure result.
-- Live GitHub/Git/IDE integration review.
 - Pull-request review, branch standardization, and release publication.
+
+## 1.0.0 - 2026-07-28
+
+- Finalized the reviewed release candidate after live local project creation
+  and live private GitHub repository creation, `main` push, remote verification,
+  and explicit remote/local cleanup.
+- Enforced request-scoped native system certificate trust for GitHub HTTPS with
+  mandatory certificate and hostname verification and a dedicated redacted
+  TLS-verification failure result.
+- Kept GitHub tokens local, explicitly sourced, ignored by Git, excluded from
+  remotes and child-process environments, and redacted from diagnostics.
+- Retained IDE launching as an isolated-boundary-tested feature; the Stage 7
+  live release test deliberately used `--ide none` and did not launch an IDE.
+- Promoted package, runtime, policy-test, and wheel metadata to final version
+  `1.0.0`.
 
 ## 1.0.0rc1
 

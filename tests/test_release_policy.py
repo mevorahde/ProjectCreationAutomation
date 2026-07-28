@@ -18,7 +18,7 @@ from project_creation_automation import __version__
 from project_creation_automation.cli import build_parser
 
 ROOT = Path(__file__).parents[1]
-RELEASE_VERSION = "1.0.0rc1"
+RELEASE_VERSION = "1.0.0"
 LEGACY_PATHS = (
     ROOT / "script.py",
     ROOT / "batch" / "create.bat",
@@ -33,17 +33,26 @@ def _configuration() -> dict[str, object]:
     )
 
 
-def test_release_version_is_consistent_and_not_final() -> None:
+def test_final_release_version_and_status_are_consistent() -> None:
     project = _configuration()["project"]
     assert isinstance(project, dict)
 
     assert project["version"] == RELEASE_VERSION
     assert __version__ == RELEASE_VERSION
     assert RELEASE_VERSION in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "1.0.0rc1" in (ROOT / "SECURITY.md").read_text(encoding="utf-8")
-    assert "final `1.0.0` release is intentionally deferred" in (
-        ROOT / "SECURITY.md"
-    ).read_text(encoding="utf-8")
+    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+    assert "`1.0.0` release line" in security
+    assert "Release publication remains deferred" in security
+
+    readme = " ".join(
+        (ROOT / "README.md").read_text(encoding="utf-8").split()
+    )
+    for evidence in (
+        "Local project creation was live-tested",
+        "Private GitHub repository creation, push, verification, and cleanup",
+        "IDE launching remains verified through isolated test boundaries",
+    ):
+        assert evidence in readme
 
 
 def test_legacy_runtime_is_absent_and_history_migration_is_documented() -> None:

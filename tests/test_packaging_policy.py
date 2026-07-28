@@ -40,7 +40,7 @@ def test_python_license_attribution_and_entry_point_metadata() -> None:
     assert isinstance(project, dict)
     assert isinstance(build_system, dict)
 
-    assert project["version"] == "1.0.0rc1"
+    assert project["version"] == "1.0.0"
     assert project["requires-python"] == ">=3.10,<3.14"
     assert project["license"] == "GPL-3.0-or-later"
     assert project["license-files"] == ["LICENSE", "ATTRIBUTION.md"]
@@ -48,6 +48,8 @@ def test_python_license_attribution_and_entry_point_metadata() -> None:
         "project-create": "project_creation_automation.cli:main"
     }
     assert project["dependencies"] == ["truststore>=0.10.4,<0.11"]
+    assert "Development Status :: 5 - Production/Stable" in project["classifiers"]
+    assert "Development Status :: 4 - Beta" not in project["classifiers"]
     assert project["urls"] == {
         "Homepage": "https://github.com/mevorahde/ProjectCreationAutomation",
         "Repository": "https://github.com/mevorahde/ProjectCreationAutomation",
@@ -152,12 +154,12 @@ def test_dependabot_updates_are_weekly_and_bounded() -> None:
 
 
 def _synthetic_wheel(path: Path, *, include_legacy: bool = False) -> None:
-    dist_info = "project_creation_automation-1.0.0rc1.dist-info"
+    dist_info = "project_creation_automation-1.0.0.dist-info"
     metadata = "\n".join(
         [
             "Metadata-Version: 2.4",
             "Name: project-creation-automation",
-            "Version: 1.0.0rc1",
+            "Version: 1.0.0",
             "License-Expression: GPL-3.0-or-later",
             "Requires-Python: >=3.10,<3.14",
             "Requires-Dist: truststore<0.11,>=0.10.4",
@@ -212,14 +214,14 @@ def _synthetic_wheel(path: Path, *, include_legacy: bool = False) -> None:
 def test_wheel_policy_accepts_metadata_and_excludes_private_runtime_artifacts(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "project_creation_automation-1.0.0rc1-py3-none-any.whl"
+    wheel = tmp_path / "project_creation_automation-1.0.0-py3-none-any.whl"
     _synthetic_wheel(wheel)
 
     verify_wheel(wheel)
 
 
 def test_wheel_policy_rejects_legacy_runtime_artifacts(tmp_path: Path) -> None:
-    wheel = tmp_path / "project_creation_automation-1.0.0rc1-py3-none-any.whl"
+    wheel = tmp_path / "project_creation_automation-1.0.0-py3-none-any.whl"
     _synthetic_wheel(wheel, include_legacy=True)
 
     with pytest.raises(ValueError, match="wheel_legacy_or_generated_artifact"):

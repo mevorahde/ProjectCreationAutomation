@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
 _EXPECTED_NAME = "project-creation-automation"
-_EXPECTED_VERSION = "1.0.0rc1"
+_EXPECTED_VERSION = "1.0.0"
 _EXPECTED_LICENSE = "GPL-3.0-or-later"
 _EXPECTED_PYTHON = frozenset({">=3.10", "<3.14"})
 _EXPECTED_DEPENDENCIES = frozenset(

@@ -1,7 +1,7 @@
 # Migration from the legacy workflow
 
 The historical `script.py`, `batch/create.bat`, and obsolete
-`requirements.txt` workflow was retired for the `1.0.0rc1` release candidate.
+`requirements.txt` workflow was retired for the `1.0.0` release.
 Those files remain available in Git history and the reviewed batch
 customization has a separate recovery patch. Neither is part of the supported
 runtime or wheel.
@@ -26,4 +26,4 @@ Important differences:
   or deleted.
 
 Do not copy commands or dependency instructions from historical revisions into
-the release-candidate workflow.
+the supported `1.0.0` workflow.

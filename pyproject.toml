@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-creation-automation"
-version = "1.0.0rc1"
+version = "1.0.0"
 description = "Safety-first local, GitHub, and optional IDE project creation"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
@@ -16,7 +16,7 @@ authors = [
 ]
 keywords = ["automation", "git", "github", "project-management"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
